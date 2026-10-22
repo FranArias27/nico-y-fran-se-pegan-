@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     default: "El Tornillo · Mostrador y cobranza",
     template: "%s · El Tornillo",
   },
-  description: "Prototipo de punto de venta, stock, facturación y cuenta corriente.",
+  description: "Punto de venta, stock, facturación electrónica y cuenta corriente.",
 };
 
 export const viewport: Viewport = {

@@ -13,8 +13,9 @@ import type {
 
 /**
  * Contratos de acceso a datos. La UI nunca los usa directamente: pasa por los
- * servicios (src/services). Hoy los implementa IndexedDB en el navegador
- * (./indexeddb); para pasar a Postgres alcanza con otra implementación.
+ * servicios (src/services). Los implementan Firestore en el navegador
+ * (./firestore), Firestore con el Admin SDK en el servidor (src/server) e
+ * IndexedDB en los tests (./indexeddb).
  */
 
 export interface ComercioRepo {

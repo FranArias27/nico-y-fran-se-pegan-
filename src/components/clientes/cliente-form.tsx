@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/auth/auth-provider";
 import { useServicios } from "@/components/providers/servicios-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,8 @@ export function ClienteForm({
   onCancelar: () => void;
 }) {
   const servicios = useServicios();
+  // El vendedor carga y edita los datos del cliente, pero no le da crédito ni lo desbloquea.
+  const credito = useAuth().puede("gestionarCredito");
   const [razonSocial, setRazonSocial] = useState(cliente?.razonSocial ?? "");
   const [nombreFantasia, setNombreFantasia] = useState(cliente?.nombreFantasia ?? "");
   const [condicionIva, setCondicionIva] = useState<CondicionIva>(cliente?.condicionIva ?? "CF");
@@ -67,6 +70,20 @@ export function ClienteForm({
     e.preventDefault();
     if (errorDocumento) return;
     setGuardando(true);
+    // Sin permiso se mandan los valores que ya tenía (las reglas de Firestore rechazan cualquier cambio).
+    const condiciones = credito
+      ? {
+          cuentaCorriente,
+          limiteCredito: cuentaCorriente ? (parseMoney(limiteTxt) ?? 0) : 0,
+          plazoDias: cuentaCorriente ? Number(plazoTxt) || 0 : 0,
+          estado,
+        }
+      : {
+          cuentaCorriente: cliente?.cuentaCorriente ?? false,
+          limiteCredito: cliente?.limiteCredito ?? 0,
+          plazoDias: cliente?.plazoDias ?? 0,
+          estado: cliente?.estado ?? "habilitado",
+        };
     try {
       const guardado = await servicios.clientes.guardar({
         id: cliente?.id,
@@ -78,10 +95,7 @@ export function ClienteForm({
         domicilio: domicilio || undefined,
         telefono: telefono || undefined,
         email: email || undefined,
-        cuentaCorriente,
-        limiteCredito: cuentaCorriente ? (parseMoney(limiteTxt) ?? 0) : 0,
-        plazoDias: cuentaCorriente ? Number(plazoTxt) || 0 : 0,
-        estado,
+        ...condiciones,
         notas: notas || undefined,
       });
       toast.success(cliente ? "Cliente actualizado" : "Cliente creado");
@@ -137,22 +151,27 @@ export function ClienteForm({
       <Separator />
 
       <section className="grid gap-4 sm:grid-cols-2">
+        {!credito && (
+          <p className="text-sm text-muted-foreground sm:col-span-2">
+            La cuenta corriente, el límite, el plazo y el estado del cliente los define un administrador.
+          </p>
+        )}
         <div className="flex items-center gap-3 sm:col-span-2">
-          <Switch id="cc" checked={cuentaCorriente} onCheckedChange={setCuentaCorriente} />
+          <Switch id="cc" checked={cuentaCorriente} onCheckedChange={setCuentaCorriente} disabled={!credito} />
           <Label htmlFor="cc">Habilitar cuenta corriente (ventas a cuenta)</Label>
         </div>
         {cuentaCorriente && (
           <>
             <Campo id="limite" etiqueta="Límite de crédito" ayuda="0 = sin límite.">
-              <Input id="limite" value={limiteTxt} onChange={(e) => setLimiteTxt(e.target.value)} inputMode="decimal" className="tabular" />
+              <Input id="limite" value={limiteTxt} onChange={(e) => setLimiteTxt(e.target.value)} inputMode="decimal" className="tabular" disabled={!credito} />
             </Campo>
             <Campo id="plazo" etiqueta="Plazo de pago (días)">
-              <Input id="plazo" value={plazoTxt} onChange={(e) => setPlazoTxt(e.target.value)} inputMode="numeric" className="tabular" />
+              <Input id="plazo" value={plazoTxt} onChange={(e) => setPlazoTxt(e.target.value)} inputMode="numeric" className="tabular" disabled={!credito} />
             </Campo>
           </>
         )}
         <Campo etiqueta="Estado">
-          <Select value={estado} onValueChange={(v) => setEstado(v as EstadoCliente)}>
+          <Select value={estado} onValueChange={(v) => setEstado(v as EstadoCliente)} disabled={!credito}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>

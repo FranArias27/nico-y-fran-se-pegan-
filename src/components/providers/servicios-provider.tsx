@@ -1,45 +1,67 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/auth/auth-provider";
 import { WrenchIcon } from "lucide-react";
+import { AvisoCertificado } from "@/components/configuracion/aviso-certificado";
 import { crearFirestoreStore } from "@/data/firestore/firestore-store";
-import { crearArcaRemoto } from "@/integrations/fiscal/arca-remoto";
-import { crearArcaSimulado } from "@/integrations/fiscal/simulated-arca";
+import type { FiscalProvider } from "@/integrations/fiscal/fiscal-provider";
 import { crearMercadoPagoSimulado } from "@/integrations/payments/simulated-mercadopago";
+import { crearOperacionesRemotas } from "@/integrations/servidor/operaciones";
 import { auth, firestore } from "@/lib/firebase/client";
 import { crearServicios, type Servicios } from "@/services";
 
+async function token(): Promise<string> {
+  if (!auth.currentUser) throw new Error("La sesión se cerró. Volvé a iniciar sesión.");
+  return auth.currentUser.getIdToken();
+}
+
+/** En el navegador no se autoriza nada: el servidor lo hace al registrar la venta. */
+const fiscalEnServidor: FiscalProvider = {
+  autorizar: () => Promise.reject(new Error("Los comprobantes se autorizan en el servidor")),
+};
+
 /**
  * Punto único donde se eligen las implementaciones. Los datos de cada empresa
- * viven en Firestore. Las empresas reales facturan con ARCA; solo las de
- * demostración usan la facturación simulada. Mercado Pago sigue simulado (en
+ * viven en Firestore. Ventas, notas de crédito y pagos se registran en el
+ * servidor (/api/operaciones), que también factura: con ARCA en las empresas
+ * reales y simulado en las de demostración. Mercado Pago sigue simulado (en
  * las empresas reales no se ofrece el cobro con QR).
  */
 const instancias = new Map<string, Servicios>();
-function obtenerServicios(empresaId: string, demo: boolean): Servicios {
-  const clave = `${empresaId}:${demo}`;
+function obtenerServicios(empresaId: string, verCostos: boolean): Servicios {
+  const clave = `${empresaId}:${verCostos}`;
   let instancia = instancias.get(clave);
   if (instancia) return instancia;
-  const store = crearFirestoreStore(firestore, empresaId);
-  const fiscal = demo
-    ? crearArcaSimulado({ numerar: (c) => store.contadores.siguiente(c) })
-    : crearArcaRemoto({
-        empresaId,
-        token: async () => {
-          if (!auth.currentUser) throw new Error("La sesión se cerró. Volvé a iniciar sesión.");
-          return auth.currentUser.getIdToken();
-        },
-      });
-  instancia = crearServicios({
-    store,
-    fiscal,
+  const base = crearServicios({
+    store: crearFirestoreStore(firestore, empresaId, { verCostos }),
+    fiscal: fiscalEnServidor,
     pagos: crearMercadoPagoSimulado(),
     ahora: () => new Date(),
     nuevoId: () => crypto.randomUUID(),
   });
+  const remotas = crearOperacionesRemotas({ empresaId, token });
+  instancia = {
+    ...base,
+    ventas: { ...base.ventas, registrar: remotas.registrarVenta, emitirNotaCredito: remotas.emitirNotaCredito },
+    cuentaCorriente: { ...base.cuentaCorriente, registrarPago: remotas.registrarPago },
+    demo: { ...base.demo, reiniciar: remotas.reiniciarDemo },
+  };
   instancias.set(clave, instancia);
   return instancia;
+}
+
+/** Pasa los costos de los datos anteriores a las colecciones que solo leen los administradores. */
+async function migrarDatos(empresaId: string) {
+  const marca = await getDoc(doc(firestore, "empresas", empresaId, "config", "migraciones"));
+  if (marca.data()?.costosSeparados === true) return;
+  const respuesta = await fetch("/api/migraciones", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+    body: JSON.stringify({ empresaId }),
+  });
+  if (!respuesta.ok) throw new Error(`No se pudieron migrar los costos (${respuesta.status})`);
 }
 
 const Contexto = createContext<Servicios | null>(null);
@@ -56,7 +78,7 @@ export function ServiciosProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!empresaId) return;
     let vigente = true;
-    const s = obtenerServicios(empresaId, demo);
+    const s = obtenerServicios(empresaId, esAdmin);
     (async () => {
       if (await s.demo.estaVacia()) {
         if (!esAdmin) throw new Error("La empresa todavía no está configurada: un administrador tiene que ingresar primero");
@@ -64,6 +86,8 @@ export function ServiciosProvider({ children }: { children: React.ReactNode }) {
         if (demo) await s.demo.reiniciar();
         else await s.demo.inicializarEmpresa(nombreEmpresa);
       }
+      // En segundo plano: no hace falta esperarla para trabajar.
+      if (esAdmin) migrarDatos(empresaId).catch((e: unknown) => console.error(e));
     })()
       .then(() => { if (vigente) setServicios(s); })
       .catch((e: unknown) => {
@@ -98,7 +122,12 @@ export function ServiciosProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <Contexto.Provider value={servicios}>{children}</Contexto.Provider>;
+  return (
+    <Contexto.Provider value={servicios}>
+      <AvisoCertificado />
+      {children}
+    </Contexto.Provider>
+  );
 }
 
 export function useServicios(): Servicios {

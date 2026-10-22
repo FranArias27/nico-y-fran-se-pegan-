@@ -9,7 +9,7 @@
 
 Las claves de configuración web de Firebase son públicas. La protección reside en Authentication y las reglas publicadas, que impiden autoasignarse roles o empresas.
 
-Todos los datos viven en Firestore: perfiles y empresas en la raíz, y los datos de cada negocio (artículos, clientes, ventas, cuenta corriente, ventas en espera y numeración) en `empresas/{id}/...`. Se comparten entre todos los dispositivos de la empresa y el navegador guarda una copia local para seguir leyendo sin conexión. Registrar una venta o un pago necesita internet, porque la numeración se asigna en el servidor.
+Todos los datos viven en Firestore: perfiles y empresas en la raíz, y los datos de cada negocio (artículos, clientes, ventas, cuenta corriente, ventas en espera y numeración) en `empresas/{id}/...`. Se comparten entre todos los dispositivos de la empresa y el navegador guarda una copia local para seguir leyendo sin conexión. Registrar una venta, una nota de crédito o un pago necesita internet: lo hace el servidor (`/api/operaciones`), que necesita la variable `FIREBASE_SERVICE_ACCOUNT` (ver [ARCA.md](ARCA.md)).
 
 Cada vez que cambie `firestore.rules` hay que volver a publicarlas: sin las reglas nuevas, la app no puede leer ni escribir los datos del negocio.
 
@@ -20,7 +20,17 @@ Hay dos clases de empresa, y se elige al crearla en `/admin` (no se puede cambia
 
 Las empresas creadas antes de este cambio quedan como reales.
 
-Las reglas aplican los permisos también en el servidor: el vendedor no modifica precios, configuración ni categorías, no borra datos, no registra ventas con descuento y solo firma ventas y recibos con su propio usuario. Lo que las reglas no pueden controlar sin un backend: que los precios de cada línea coincidan con el catálogo, y que el vendedor no vea los costos (los artículos se leen completos).
+Los permisos se aplican del lado del servidor:
+
+- **Reglas de Firestore:**
+  - El vendedor no modifica artículos, precios, stock, configuración ni categorías.
+  - No borra datos.
+  - No cambia la cuenta corriente, el límite, el plazo ni el estado de los clientes.
+  - No lee los costos: están en `costos/` y `ventasCostos/`, que solo leen los administradores.
+  - Ventas, movimientos de cuenta corriente, recibos y numeración no se escriben desde el navegador, salvo al reiniciar una empresa de demostración.
+- **`/api/operaciones`:** registra las ventas con los precios del catálogo, firma cada venta y recibo con el usuario de la sesión, rechaza los descuentos del vendedor y deja las notas de crédito solo a los administradores.
+
+Al entrar un administrador por primera vez después de esta versión, la app pasa en segundo plano los costos de los datos anteriores a las colecciones nuevas (`/api/migraciones`). Hasta entonces, los vendedores todavía pueden ver los costos guardados antes.
 
 Los datos que quedaron en IndexedDB con la versión anterior no se migran.
 

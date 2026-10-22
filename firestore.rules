@@ -37,16 +37,29 @@ service cloud.firestore {
     }
     // Business data: empresas/{empresaId}/{coleccion}/{docId}.
     // The superadmin (support mode) and the company admin manage the business;
-    // a vendedor can sell and collect but cannot change prices or config.
+    // a vendedor can sell and collect but cannot change prices, credit or config.
+    // Sales, credit notes and payments are written only by the server
+    // (/api/operaciones), which prices them from the catalog and checks permissions.
+    // The browser writes them only when resetting a demo company.
     // Data is only ever deleted in demo companies (demo reset): real records are kept.
     match /empresas/{empresaId} {
       function active() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.activa == true; }
       function staff() { return general() || (member(empresaId) && active()); }
       function admin() { return general() || (member(empresaId) && active() && profile().rol == 'admin'); }
-      function own(field) { return request.resource.data[field] == request.auth.uid; }
-      function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
       function demo() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.get('demo', false) == true; }
       function wipe() { return admin() && demo(); }
+      // Costs and margins live in costos/ and ventasCostos/, readable only by admins.
+      function noCosts() { return !request.resource.data.keys().hasAny(['costo', 'margen']); }
+      // Credit terms and status of a customer are decided only by an admin.
+      function noCredit() {
+        return request.resource.data.cuentaCorriente == false && request.resource.data.limiteCredito == 0
+          && request.resource.data.plazoDias == 0 && request.resource.data.estado == 'habilitado';
+      }
+      function creditUntouched() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['cuentaCorriente', 'limiteCredito', 'plazoDias', 'estado']);
+      }
 
       // certificadoArca is written only by the server when a certificate is uploaded.
       function certificateUntouched() {
@@ -65,46 +78,45 @@ service cloud.firestore {
       }
       match /articulos/{id} {
         allow read: if staff();
-        allow create: if admin();
+        // Stock moves with sales, which the server registers.
+        allow create, update: if admin() && noCosts();
         allow delete: if wipe();
-        // Sales only adjust stock.
-        allow update: if admin() || (staff() && changes(['stock']));
+      }
+      match /costos/{id} {
+        allow read, create, update: if admin();
+        allow delete: if wipe();
       }
       match /clientes/{id} {
-        allow read, create, update: if staff();
-        allow delete: if wipe();
-      }
-      match /ventas/{id} {
         allow read: if staff();
-        // Only admins grant discounts and issue credit notes. Line prices cannot be checked here (no loops in rules).
-        allow create: if admin() || (staff() && own('vendedorId')
-          && request.resource.data.get('clase', 'factura') == 'factura'
-          && request.resource.data.totales.descuentos == 0);
-        allow update: if false;
-        allow delete: if wipe();
-      }
-      match /movimientos/{id} {
-        allow read, create: if staff();
-        // A sale applies the customer's credit balance by adding imputaciones.
-        allow update: if admin() || (staff() && changes(['imputaciones']));
-        allow delete: if wipe();
-      }
-      match /recibos/{id} {
-        allow read: if staff();
-        allow create: if admin() || (staff() && own('usuarioId'));
-        allow update: if false;
+        allow create: if admin() || (staff() && noCredit());
+        allow update: if admin() || (staff() && creditUntouched());
         allow delete: if wipe();
       }
       match /enEspera/{id} {
         allow read, write: if staff();
       }
+      // Written by the server; the browser only reloads them in a demo reset.
+      match /ventas/{id} {
+        allow read: if staff();
+        allow create, delete: if wipe();
+      }
+      match /ventasCostos/{id} {
+        allow read: if admin();
+        allow create, delete: if wipe();
+      }
+      match /movimientos/{id} {
+        allow read: if staff();
+        allow create, delete: if wipe();
+      }
+      match /recibos/{id} {
+        allow read: if staff();
+        allow create, delete: if wipe();
+      }
       match /contadores/{id} {
         allow read: if staff();
-        // Numbering only moves forward one step at a time.
-        allow create: if admin() || (staff() && request.resource.data.ultimo == 1);
-        allow update: if admin() || (staff() && request.resource.data.ultimo == resource.data.ultimo + 1);
-        allow delete: if wipe();
+        allow create, update, delete: if wipe();
       }
+      // operaciones/ (server trace of each sale and its CAE) has no rule: server-only.
     }
 
     // Everything else, including arcaCredenciales (ARCA private keys), is server-only.

@@ -6,10 +6,19 @@ export type Permiso =
   | "verReportes"
   | "aplicarDescuentos"
   | "emitirNotasCredito"
+  | "gestionarCredito" // cuenta corriente, límite, plazo y estado de los clientes
   | "configurar";
 
 const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
-  admin: ["verCostos", "editarPrecios", "verReportes", "aplicarDescuentos", "emitirNotasCredito", "configurar"],
+  admin: [
+    "verCostos",
+    "editarPrecios",
+    "verReportes",
+    "aplicarDescuentos",
+    "emitirNotasCredito",
+    "gestionarCredito",
+    "configurar",
+  ],
   vendedor: [],
 };
 

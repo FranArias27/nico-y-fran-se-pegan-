@@ -30,6 +30,8 @@ export async function cuentaDeCliente(ctx: Contexto, clienteId: string): Promise
 }
 
 export interface NuevoPago {
+  /** Id del recibo. Lo elige quien lo pide, para que reintentar el pedido no lo duplique. */
+  id?: string;
   clienteId: string;
   importe: Centavos;
   medio: MedioPago;
@@ -61,7 +63,7 @@ export async function registrarPago(ctx: Contexto, input: NuevoPago): Promise<Re
   const descripcionDe = new Map(deudas.map((d) => [d.debito.id, d.debito.descripcion]));
 
   const recibo: Recibo = {
-    id: ctx.nuevoId(),
+    id: input.id ?? ctx.nuevoId(),
     numero,
     puntoVenta: comercio.puntoVenta,
     fecha,

@@ -167,6 +167,8 @@ export function ConfiguracionView() {
       setGeneracion((g) => g + 1);
       toast.success("Demo reiniciada");
       setConfirmar(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo reiniciar la demo");
     } finally {
       setReiniciando(false);
     }

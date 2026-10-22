@@ -1,6 +1,6 @@
 import { cert, getApp, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 /** Falta una variable de entorno: es un problema de instalación, no del usuario. */
 export class ErrorConfiguracion extends Error {}
@@ -19,4 +19,12 @@ function app(): App {
 }
 
 export const adminAuth = () => getAuth(app());
-export const adminDb = () => getFirestore(app());
+
+let db: Firestore | undefined;
+export function adminDb(): Firestore {
+  if (db) return db;
+  db = getFirestore(app());
+  // Igual que en el navegador: los tipos del dominio usan campos opcionales y Firestore rechaza `undefined`.
+  db.settings({ ignoreUndefinedProperties: true });
+  return db;
+}

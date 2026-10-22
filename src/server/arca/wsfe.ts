@@ -107,3 +107,45 @@ export async function solicitarCae(entorno: EntornoArca, ticket: Ticket, cuit: s
     [...general.codigos, ...propio.codigos],
   );
 }
+
+/** Comprobante ya autorizado, según FECompConsultar. */
+export interface ComprobanteAutorizado extends Cae {
+  /** Importe total en pesos, como lo informa ARCA ("1234.56"). */
+  total: string;
+  documentoNumero: string;
+}
+
+/** Consulta un comprobante emitido. Devuelve undefined si ARCA no lo tiene registrado. */
+export async function consultarComprobante(
+  entorno: EntornoArca,
+  ticket: Ticket,
+  cuit: string,
+  puntoVenta: number,
+  codigoComprobante: number,
+  numero: number,
+): Promise<ComprobanteAutorizado | undefined> {
+  const cuerpo = await llamarSoap(
+    URLS_ARCA[entorno].wsfe,
+    `${NS}FECompConsultar`,
+    sobre(
+      "FECompConsultar",
+      ticket,
+      cuit,
+      `<ar:FeCompConsReq><ar:CbteTipo>${codigoComprobante}</ar:CbteTipo><ar:CbteNro>${numero}</ar:CbteNro><ar:PtoVta>${puntoVenta}</ar:PtoVta></ar:FeCompConsReq>`,
+    ),
+  );
+  const resultado = campo(cuerpo, "FECompConsultarResponse", "FECompConsultarResult");
+  const comprobante = campo(resultado, "ResultGet");
+  if (comprobante && campo(comprobante, "Resultado") === "A" && campo(comprobante, "CodAutorizacion")) {
+    return {
+      cae: String(campo(comprobante, "CodAutorizacion")),
+      vencimiento: String(campo(comprobante, "FchVto")),
+      total: String(campo(comprobante, "ImpTotal")),
+      documentoNumero: String(campo(comprobante, "DocNro")),
+    };
+  }
+  const { codigos, mensaje } = erroresDe(resultado);
+  // 602: no existe el comprobante.
+  if (codigos.includes("602") || (!comprobante && codigos.length === 0)) return undefined;
+  throw new ErrorArca(mensaje || "No se pudo consultar el comprobante", codigos);
+}

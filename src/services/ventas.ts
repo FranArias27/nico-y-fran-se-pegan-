@@ -29,6 +29,8 @@ import { formatNumeroComprobante } from "@/lib/format";
 import { ErrorDeNegocio, type Contexto } from "./contexto";
 
 export interface NuevaVenta {
+  /** Id de la venta. Lo elige quien la pide, para que reintentar el pedido no la duplique. */
+  id?: string;
   tipo: TipoComprobante;
   clienteId: string;
   items: ItemCarrito[];
@@ -108,7 +110,7 @@ export async function registrarVenta(ctx: Contexto, input: NuevaVenta): Promise<
   });
 
   const venta: Venta = {
-    id: ctx.nuevoId(),
+    id: input.id ?? ctx.nuevoId(),
     clase: "factura",
     tipo: input.tipo,
     puntoVenta: comercio.puntoVenta,
@@ -182,6 +184,8 @@ export function notasDeCredito(ctx: Contexto, ventaId: string): Promise<Venta[]>
 // Notas de crédito
 
 export interface NuevaNotaCredito {
+  /** Id de la nota. Lo elige quien la pide, para que reintentar el pedido no la duplique. */
+  id?: string;
   ventaId: string;
   devoluciones: Devolucion[];
   /** Cómo se le devuelve el dinero al cliente; "cuenta_corriente" lo acredita en su cuenta. */
@@ -233,7 +237,7 @@ export async function emitirNotaCredito(ctx: Contexto, input: NuevaNotaCredito):
   });
 
   const nota: Venta = {
-    id: ctx.nuevoId(),
+    id: input.id ?? ctx.nuevoId(),
     clase: "nota_credito",
     tipo: venta.tipo,
     puntoVenta: comercio.puntoVenta,

@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <p className="p-4 text-xs text-muted-foreground">Prototipo de demostración</p>
+        {empresa?.demo && <p className="p-4 text-xs text-muted-foreground">Empresa de demostración</p>}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

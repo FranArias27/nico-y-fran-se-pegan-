@@ -25,13 +25,14 @@ export async function usuarioDelPedido(request: Request): Promise<string> {
 /**
  * Verifica que el usuario trabaje en la empresa (o sea superadmin) y que la
  * empresa esté activa. Con `soloAdmin`, además tiene que ser administrador.
- * Devuelve si la empresa es de demostración.
+ * Devuelve si la empresa es de demostración y quién es el usuario (el
+ * superadmin, en modo soporte, cuenta como administrador).
  */
 export async function validarAcceso(
   uid: string,
   empresaId: string,
   opciones: { soloAdmin?: boolean } = {},
-): Promise<{ demo: boolean }> {
+): Promise<{ demo: boolean; admin: boolean; nombre: string }> {
   if (!/^[a-z0-9-]{1,60}$/.test(empresaId)) throw new ErrorPedido("Empresa inválida", 400);
   const db = adminDb();
   const [usuario, empresa] = await Promise.all([db.doc(`usuarios/${uid}`).get(), db.doc(`empresas/${empresaId}`).get()]);
@@ -39,11 +40,12 @@ export async function validarAcceso(
   const general = perfil?.activo === true && perfil.rol === "superadmin";
   const miembro = perfil?.activo === true && perfil.empresaId === empresaId;
   if (!general && !miembro) throw new ErrorPedido("No tenés acceso a esta empresa", 403);
-  if (opciones.soloAdmin && !general && perfil?.rol !== "admin") {
+  const admin = general || perfil?.rol === "admin";
+  if (opciones.soloAdmin && !admin) {
     throw new ErrorPedido("Solo un administrador puede hacer esto", 403);
   }
   if (empresa.data()?.activa !== true) throw new ErrorPedido("La empresa está deshabilitada", 403);
-  return { demo: empresa.data()?.demo === true };
+  return { demo: empresa.data()?.demo === true, admin, nombre: String(perfil?.nombre ?? "") };
 }
 
 /** Respuesta JSON para cualquier error de un endpoint. */

@@ -1,6 +1,6 @@
 # Facturación electrónica con ARCA
 
-La app emite Factura A, B y C y sus notas de crédito con el web service de factura electrónica de ARCA (WSFEv1). Lo hace desde el servidor (`src/app/api/arca`), nunca desde el navegador.
+La app emite Factura A, B y C y sus notas de crédito con el web service de factura electrónica de ARCA (WSFEv1). Lo hace desde el servidor, al registrar la venta (`src/app/api/operaciones`), nunca desde el navegador.
 
 ## Cómo funciona
 
@@ -13,8 +13,12 @@ La app emite Factura A, B y C y sus notas de crédito con el web service de fact
 - **Cambiar de certificado no corta la facturación.** Si se genera un pedido nuevo, por ejemplo para renovar, el certificado anterior sigue funcionando hasta que se carga el nuevo.
 - **Toda empresa real factura con ARCA.** Hasta que carga su certificado, solo puede emitir notas de pedido. No existe la facturación simulada en las empresas reales: solo en la de demostración (ver [FIREBASE.md](FIREBASE.md)).
 - **Un certificado de homologación emite comprobantes de prueba.** Se marcan como sin validez fiscal.
-- **El servidor no confía en el navegador para los datos fiscales.** Lee el CUIT, la condición de IVA y el punto de venta desde Firestore, y verifica que el usuario pertenezca a la empresa. Las notas de crédito y la gestión del certificado son solo para administradores.
+- **El servidor no confía en el navegador.** El navegador solo dice qué artículos y cantidades se venden y cómo se pagan. El servidor lee del catálogo los precios, y de Firestore el CUIT, la condición de IVA y el punto de venta; calcula los importes, verifica que el usuario pertenezca a la empresa y pide el CAE. Las notas de crédito, los descuentos y la gestión del certificado son solo para administradores.
 - **La numeración la pone ARCA.** El servidor pide el último número autorizado y usa el siguiente. Si otra caja ganó ese número en el medio, reintenta una vez.
+- **Un CAE no se pierde.**
+  - Si ARCA no responde a tiempo, el servidor consulta (`FECompConsultar`) si el comprobante quedó autorizado igual, y en ese caso lo usa.
+  - El CAE se anota en `empresas/{empresa}/operaciones/{id}` antes de guardar la venta. Si se corta la conexión, el navegador reintenta con el mismo id y el servidor usa ese CAE en vez de pedir otro; si la venta ya estaba guardada, la devuelve sin duplicarla.
+  - Una operación con `fiscal` y sin `completada` es un comprobante autorizado que no quedó registrado: revisarla desde la consola de Firestore.
 
 ## 1. Variables de entorno del servidor (una sola vez)
 
@@ -66,7 +70,8 @@ El certificado dura 2 años. Para renovarlo se repiten los pasos 2, 3 y 7; el an
 - **Percepciones y otros tributos.**
 - **Factura de crédito electrónica MiPyME.**
 - **Contingencia** (CAEA) cuando ARCA está caído: si ARCA no responde, la venta no se registra. Mientras tanto se puede emitir una nota de pedido.
-- **Aviso de vencimiento del certificado:** la app muestra la fecha, pero no avisa sola.
+
+**Vencimiento del certificado:** desde 30 días antes, los administradores ven un aviso en todas las pantallas.
 
 **Límite de identificación:** ARCA exige identificar al consumidor final en Factura B a partir de cierto monto. Si se supera, ARCA rechaza el comprobante con un mensaje que se muestra en pantalla: hay que cargar el cliente con su DNI.
 

@@ -1,7 +1,7 @@
 ﻿import type { NextConfig } from "next";
 
-// El prototipo corre 100 % en el navegador (datos en IndexedDB), así que no
-// usamos Cache Components ni Partial Prefetching: no hay datos del servidor.
+// Las páginas leen los datos desde el navegador (Firestore) y el servidor solo
+// expone rutas API, así que no usamos Cache Components ni Partial Prefetching.
 const nextConfig: NextConfig = {
   turbopack: {
     rules: {

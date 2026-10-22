@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
   increment,
@@ -19,24 +20,23 @@ import {
 } from "firebase/firestore";
 import { desdeFechaISO, sumarDias, type Rango } from "@/domain/fechas";
 import type { Comercio } from "@/domain/types";
+import {
+  unirArticulo,
+  unirTodos,
+  unirVenta,
+  type ArticuloPublico,
+  type CostoArticulo,
+  type CostosVenta,
+  type VentaPublica,
+} from "../costos";
+import { COLECCIONES, filasArticulo, filasIniciales, filasVenta, type Coleccion, type Fila } from "../filas";
 import type { DatosIniciales, Store } from "../store";
 
 /** Firestore admite hasta 500 escrituras por lote; dejamos margen. */
 const MAXIMO_POR_LOTE = 450;
 
-const COLECCIONES = [
-  "config",
-  "categorias",
-  "articulos",
-  "clientes",
-  "ventas",
-  "movimientos",
-  "recibos",
-  "enEspera",
-  "contadores",
-] as const;
-
-type Coleccion = (typeof COLECCIONES)[number];
+/** Firestore admite hasta 30 valores en un filtro "in". */
+const MAXIMO_IN = 30;
 
 /** Límites ISO (UTC) de un rango de fechas locales. */
 function limitesISO(rango: Rango): [string, string] {
@@ -56,8 +56,14 @@ const porFecha = <T extends { fecha: string }>(lista: T[]) => lista.sort((a, b) 
  * lecturas dentro de `fn` no se bloquean, así que no hay que tomar decisiones
  * a partir de ellas: los servicios leen antes de abrir la transacción. El stock
  * se ajusta con `increment()`, que es atómico aunque vendan dos cajas a la vez.
+ *
+ * Las ventas, notas de crédito y pagos los registra el servidor
+ * (/api/operaciones): las reglas no dejan que el navegador los escriba, salvo
+ * al reiniciar una empresa de demostración.
+ *
+ * Con `verCostos` en false (vendedores) no se leen los costos: ver ../costos.ts.
  */
-export function crearFirestoreStore(db: Firestore, empresaId: string): Store {
+export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: { verCostos: boolean }): Store {
   const col = <T = DocumentData>(nombre: Coleccion) =>
     collection(db, "empresas", empresaId, nombre) as CollectionReference<T>;
   const ref = (nombre: Coleccion, id: string) => doc(db, "empresas", empresaId, nombre, id);
@@ -67,6 +73,36 @@ export function crearFirestoreStore(db: Firestore, empresaId: string): Store {
     const snap = await getDoc(ref(nombre, id));
     return snap.exists() ? (snap.data() as T) : undefined;
   };
+
+  // --- Costos (solo administradores) ----------------------------------------
+  type ColeccionCostos = "costos" | "ventasCostos";
+  const porId = <C>(docs: { id: string; data: () => DocumentData }[]) => new Map(docs.map((d) => [d.id, d.data() as C]));
+
+  async function costosDe<C>(nombre: ColeccionCostos, q?: Query): Promise<Map<string, C>> {
+    if (!opciones.verCostos) return new Map();
+    return porId<C>((await getDocs(q ?? col(nombre))).docs);
+  }
+
+  async function costosPorIds<C>(nombre: ColeccionCostos, ids: string[]): Promise<Map<string, C>> {
+    if (!opciones.verCostos || ids.length === 0) return new Map();
+    const grupos: string[][] = [];
+    for (let i = 0; i < ids.length; i += MAXIMO_IN) grupos.push(ids.slice(i, i + MAXIMO_IN));
+    const snaps = await Promise.all(grupos.map((g) => getDocs(query(col(nombre), where(documentId(), "in", g)))));
+    return porId<C>(snaps.flatMap((s) => s.docs));
+  }
+
+  const costoDe = <C>(nombre: ColeccionCostos, id: string) =>
+    opciones.verCostos ? leerUno<C>(nombre, id) : Promise.resolve(undefined);
+
+  async function leerVentas(q: Query<VentaPublica>, qCostos?: Query) {
+    const publicas = await leer(q);
+    const costos = qCostos
+      ? await costosDe<CostosVenta>("ventasCostos", qCostos)
+      : await costosPorIds<CostosVenta>("ventasCostos", publicas.map((v) => v.id));
+    return unirTodos(publicas, costos, unirVenta);
+  }
+
+  const escribirFila = (b: WriteBatch, [nombre, id, datos]: Fila) => b.set(ref(nombre, id), datos);
 
   // --- Notificaciones -------------------------------------------------------
   const oyentes = new Set<() => void>();
@@ -156,10 +192,22 @@ export function crearFirestoreStore(db: Firestore, empresaId: string): Store {
     },
 
     articulos: {
-      listar: () => leer(col("articulos")),
-      obtener: (id) => leerUno("articulos", id),
-      guardar: (a) => escribir((b) => b.set(ref("articulos", a.id), a)),
-      guardarVarios: (as) => escribirVarios(as, (b, a) => b.set(ref("articulos", a.id), a)),
+      async listar() {
+        const [publicos, costos] = await Promise.all([
+          leer(col<ArticuloPublico>("articulos")),
+          costosDe<CostoArticulo>("costos"),
+        ]);
+        return unirTodos(publicos, costos, unirArticulo);
+      },
+      async obtener(id) {
+        const [publico, costo] = await Promise.all([
+          leerUno<ArticuloPublico>("articulos", id),
+          costoDe<CostoArticulo>("costos", id),
+        ]);
+        return publico && unirArticulo(publico, costo);
+      },
+      guardar: (a) => escribirVarios(filasArticulo(a), escribirFila),
+      guardarVarios: (as) => escribirVarios(as.flatMap(filasArticulo), escribirFila),
       ajustarStock: (id, delta) => escribir((b) => b.update(ref("articulos", id), { stock: increment(delta) })),
     },
 
@@ -171,15 +219,30 @@ export function crearFirestoreStore(db: Firestore, empresaId: string): Store {
 
     ventas: {
       async listar(rango) {
-        if (!rango) return leer(query(col("ventas"), orderBy("fecha")));
+        const ventas = col<VentaPublica>("ventas");
+        if (!rango) return leerVentas(query(ventas, orderBy("fecha")), col("ventasCostos"));
         const [desde, hasta] = limitesISO(rango);
-        return leer(query(col("ventas"), where("fecha", ">=", desde), where("fecha", "<", hasta), orderBy("fecha")));
+        const enRango = <T>(c: CollectionReference<T>) =>
+          query(c, where("fecha", ">=", desde), where("fecha", "<", hasta));
+        return leerVentas(query(enRango(ventas), orderBy("fecha")), enRango(col("ventasCostos")));
       },
-      listarPorCliente: async (clienteId) => porFecha(await leer(query(col("ventas"), where("clienteId", "==", clienteId)))),
+      listarPorCliente: async (clienteId) =>
+        porFecha(
+          await leerVentas(
+            query(col<VentaPublica>("ventas"), where("clienteId", "==", clienteId)),
+            query(col("ventasCostos"), where("clienteId", "==", clienteId)),
+          ),
+        ),
       listarNotasDe: async (ventaId) =>
-        porFecha(await leer(query(col("ventas"), where("asociado.ventaId", "==", ventaId)))),
-      obtener: (id) => leerUno("ventas", id),
-      agregar: (v) => escribir((b) => b.set(ref("ventas", v.id), v)),
+        porFecha(await leerVentas(query(col<VentaPublica>("ventas"), where("asociado.ventaId", "==", ventaId)))),
+      async obtener(id) {
+        const [publica, costos] = await Promise.all([
+          leerUno<VentaPublica>("ventas", id),
+          costoDe<CostosVenta>("ventasCostos", id),
+        ]);
+        return publica && unirVenta(publica, costos);
+      },
+      agregar: (v) => escribirVarios(filasVenta(v), escribirFila),
     },
 
     movimientos: {
@@ -239,22 +302,13 @@ export function crearFirestoreStore(db: Firestore, empresaId: string): Store {
 
     /**
      * Borra todo y carga los datos indicados. Con muchos documentos no entra en
-     * un solo lote, así que no es atómico: si se corta a mitad, repetirlo.
+     * un solo lote, así que no es atómico: si se corta a mitad, repetirlo. Se usa
+     * para crear una empresa nueva (pocos datos); el reinicio de una demo, con
+     * miles de ventas, lo hace el servidor (/api/demo), que es mucho más rápido.
      */
     async reemplazarTodo(datos: DatosIniciales) {
       for (const nombre of COLECCIONES) await vaciar(nombre);
-      const filas: [Coleccion, string, DocumentData][] = [
-        ...datos.categorias.map((x): [Coleccion, string, DocumentData] => ["categorias", x.id, x]),
-        ...datos.articulos.map((x): [Coleccion, string, DocumentData] => ["articulos", x.id, x]),
-        ...datos.clientes.map((x): [Coleccion, string, DocumentData] => ["clientes", x.id, x]),
-        ...datos.ventas.map((x): [Coleccion, string, DocumentData] => ["ventas", x.id, x]),
-        ...datos.movimientos.map((x): [Coleccion, string, DocumentData] => ["movimientos", x.id, x]),
-        ...datos.recibos.map((x): [Coleccion, string, DocumentData] => ["recibos", x.id, x]),
-        ...Object.entries(datos.contadores).map(
-          ([clave, ultimo]): [Coleccion, string, DocumentData] => ["contadores", clave, { clave, ultimo }],
-        ),
-      ];
-      await escribirVarios(filas, (b, [nombre, id, datos]) => b.set(ref(nombre, id), datos));
+      await escribirVarios(filasIniciales(datos), escribirFila);
       // El comercio va al final: mientras no exista, la empresa figura como vacía.
       await escribir((b) => b.set(ref("config", "comercio"), datos.comercio));
     },

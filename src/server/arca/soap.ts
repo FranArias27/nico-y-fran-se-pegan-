@@ -32,6 +32,12 @@ export function lista(valor: unknown): Record<string, unknown>[] {
   return (Array.isArray(valor) ? valor : [valor]) as Record<string, unknown>[];
 }
 
+/**
+ * Código de ErrorArca cuando no llegó la respuesta (sin conexión o demora).
+ * ARCA pudo haber procesado el pedido igual.
+ */
+export const SIN_RESPUESTA = "sin-respuesta";
+
 export class ErrorArca extends Error {
   constructor(
     mensaje: string,
@@ -53,7 +59,7 @@ export async function llamarSoap(url: string, accion: string, sobre: string): Pr
       signal: AbortSignal.timeout(30_000),
     });
   } catch {
-    throw new ErrorArca("No se pudo conectar con ARCA. Probá de nuevo en unos minutos.");
+    throw new ErrorArca("No se pudo conectar con ARCA. Probá de nuevo en unos minutos.", [SIN_RESPUESTA]);
   }
   const cuerpo = campo(parsearXml(await respuesta.text()), "Envelope", "Body");
   const falla = campo(cuerpo, "Fault");
