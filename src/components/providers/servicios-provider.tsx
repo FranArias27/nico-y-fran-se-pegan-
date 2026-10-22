@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { useAuth } from "@/auth/auth-provider";
 import { WrenchIcon } from "lucide-react";
 import { crearDexieStore } from "@/data/indexeddb/dexie-store";
 import { crearArcaSimulado } from "@/integrations/fiscal/simulated-arca";
@@ -11,31 +12,39 @@ import { crearServicios, type Servicios } from "@/services";
  * Punto único donde se eligen las implementaciones. Para pasar a un backend
  * real se reemplazan acá el store y los proveedores.
  */
-let instancia: Servicios | null = null;
-function obtenerServicios(): Servicios {
-  instancia ??= crearServicios({
-    store: crearDexieStore(),
+const instancias = new Map<string, Servicios>();
+function obtenerServicios(empresaId: string): Servicios {
+  let instancia = instancias.get(empresaId);
+  if (instancia) return instancia;
+  instancia = crearServicios({
+    store: crearDexieStore(`el-tornillo-empresa-${empresaId}`),
     fiscal: crearArcaSimulado(),
     pagos: crearMercadoPagoSimulado(),
     ahora: () => new Date(),
     nuevoId: () => crypto.randomUUID(),
   });
+  instancias.set(empresaId, instancia);
   return instancia;
 }
 
 const Contexto = createContext<Servicios | null>(null);
 
 export function ServiciosProvider({ children }: { children: React.ReactNode }) {
+  const { perfil } = useAuth();
+  const empresaId = perfil?.empresaId;
   const [servicios, setServicios] = useState<Servicios | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const s = obtenerServicios();
+    if (!empresaId) return;
+    let vigente = true;
+    const s = obtenerServicios(empresaId);
     s.demo
       .asegurarDatos()
-      .then(() => setServicios(s))
+      .then(() => { if (vigente) setServicios(s); })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+    return () => { vigente = false; };
+  }, [empresaId]);
 
   if (error) {
     return (
@@ -65,3 +74,5 @@ export function useServicios(): Servicios {
   if (!s) throw new Error("useServicios debe usarse dentro de <ServiciosProvider>");
   return s;
 }
+
+

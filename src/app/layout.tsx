@@ -1,9 +1,7 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/auth/auth-provider";
-import { ImpresionProvider } from "@/components/impresion/impresion-provider";
-import { AppShell } from "@/components/layout/app-shell";
-import { ServiciosProvider } from "@/components/providers/servicios-provider";
+import { AuthGate } from "@/components/auth/auth-gate";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -38,11 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <AuthProvider>
           <TooltipProvider>
-            <AppShell>
-              <ServiciosProvider>
-                <ImpresionProvider>{children}</ImpresionProvider>
-              </ServiciosProvider>
-            </AppShell>
+            <AuthGate>{children}</AuthGate>
             <Toaster position="top-center" richColors />
           </TooltipProvider>
         </AuthProvider>
@@ -50,3 +44,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     </html>
   );
 }
+
+
+

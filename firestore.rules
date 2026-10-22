@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }
+    function general() { return signedIn() && profile().activo == true && profile().rol == 'superadmin'; }
+    function member(id) { return signedIn() && profile().activo == true && profile().empresaId == id; }
+    function validCompany() { return request.resource.data.keys().hasOnly(['nombre', 'activa']) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100 && request.resource.data.activa is bool; }
+    match /usuarios/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || general());
+      allow list: if general();
+      allow create, update: if general() && uid != request.auth.uid
+        && request.resource.data.keys().hasOnly(['nombre', 'empresaId', 'rol', 'activo'])
+        && request.resource.data.nombre is string
+        && request.resource.data.activo is bool
+        && request.resource.data.rol in ['admin', 'vendedor']
+        && request.resource.data.empresaId is string
+        && exists(/databases/$(database)/documents/empresas/$(request.resource.data.empresaId));
+      allow delete: if general() && uid != request.auth.uid && resource.data.rol != 'superadmin';
+    }
+    match /empresas/{id} {
+      allow get: if general() || member(id);
+      allow list: if general();
+      allow create, update: if general() && validCompany();
+    }
+    // Only the display name and access status are public; directory listing is forbidden.
+    match /accesos/{id} {
+      allow get: if true;
+      allow list: if general();
+      allow create, update: if general() && validCompany();
+    }
+    // Business data is still local. All other cloud access is denied until its migration.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,164 @@
+[debug] [2026-10-22T15:15:04.321Z] ----------------------------------------------------------------------
+[debug] [2026-10-22T15:15:04.323Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nikom\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login:list --json
+[debug] [2026-10-22T15:15:04.323Z] CLI Version:   15.22.0
+[debug] [2026-10-22T15:15:04.323Z] Platform:      win32
+[debug] [2026-10-22T15:15:04.323Z] Node Version:  v24.14.0
+[debug] [2026-10-22T15:15:04.323Z] Detected Agent: codex_cli
+[debug] [2026-10-22T15:15:04.323Z] Time:          Thu Oct 22 2026 12:15:04 GMT-0300 (hora estándar de Argentina)
+[debug] [2026-10-22T15:15:04.323Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-22T15:15:04.325Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[info] Logged in as nikomares04@gmail.com
+[debug] [2026-10-22T15:15:34.296Z] ----------------------------------------------------------------------
+[debug] [2026-10-22T15:15:34.297Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nikom\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js firestore:databases:list --project eltornillo-6af7d --json
+[debug] [2026-10-22T15:15:34.297Z] CLI Version:   15.22.0
+[debug] [2026-10-22T15:15:34.297Z] Platform:      win32
+[debug] [2026-10-22T15:15:34.298Z] Node Version:  v24.14.0
+[debug] [2026-10-22T15:15:34.298Z] Detected Agent: codex_cli
+[debug] [2026-10-22T15:15:34.298Z] Time:          Thu Oct 22 2026 12:15:34 GMT-0300 (hora estándar de Argentina)
+[debug] [2026-10-22T15:15:34.298Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-22T15:15:34.299Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-10-22T15:15:50.426Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-22T15:15:50.426Z] > authorizing via signed-in user (nikomares04@gmail.com)
+[debug] [2026-10-22T15:15:50.426Z] [iam] checking project eltornillo-6af7d for permissions ["datastore.databases.list","firebase.projects.get"]
+[debug] [2026-10-22T15:15:50.427Z] Checked if tokens are valid: false, expires at: 1781998082653
+[debug] [2026-10-22T15:15:50.427Z] Checked if tokens are valid: false, expires at: 1781998082653
+[debug] [2026-10-22T15:15:50.427Z] > refreshing access token with scopes: []
+[debug] [2026-10-22T15:15:50.427Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-10-22T15:15:50.427Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-10-22T15:15:50.551Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-10-22T15:15:50.552Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-10-22T15:15:50.665Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions [none]
+[debug] [2026-10-22T15:15:50.665Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions  x-goog-user-project=eltornillo-6af7d
+[debug] [2026-10-22T15:15:50.665Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.databases.list","firebase.projects.get"]}
+[debug] [2026-10-22T15:15:50.879Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-10-22T15:15:50.879Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-10-22T15:15:51.574Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions 200
+[debug] [2026-10-22T15:15:51.574Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.databases.list","firebase.projects.get"]}
+[debug] [2026-10-22T15:15:51.574Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:15:51.575Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:15:51.575Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases [none]
+[debug] [2026-10-22T15:15:52.335Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases 200
+[debug] [2026-10-22T15:15:52.335Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases {"databases":[{"name":"projects/eltornillo-6af7d/databases/(default)","uid":"47ac89c8-7b13-41c1-b915-00c8cdedc00a","createTime":"2026-10-22T15:13:13.918265Z","updateTime":"2026-10-22T15:13:13.918265Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-10-22T15:13:13.918265Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IJiV07T1zZcDMMGttu30zZcD"}]}
+[info] ┌──────────────────────────────────────────────────┬────────────────────┬────────────────────┐
+│ Database Name                                    │ Edition            │ Type               │
+├──────────────────────────────────────────────────┼────────────────────┼────────────────────┤
+│ projects/eltornillo-6af7d/databases/(default)    │ STANDARD           │ FIRESTORE_NATIVE   │
+└──────────────────────────────────────────────────┴────────────────────┴────────────────────┘
+[debug] [2026-10-22T15:16:42.097Z] ----------------------------------------------------------------------
+[debug] [2026-10-22T15:16:42.098Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nikom\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules --project eltornillo-6af7d --non-interactive
+[debug] [2026-10-22T15:16:42.098Z] CLI Version:   15.22.0
+[debug] [2026-10-22T15:16:42.098Z] Platform:      win32
+[debug] [2026-10-22T15:16:42.098Z] Node Version:  v24.14.0
+[debug] [2026-10-22T15:16:42.099Z] Detected Agent: codex_cli
+[debug] [2026-10-22T15:16:42.099Z] Time:          Thu Oct 22 2026 12:16:42 GMT-0300 (hora estándar de Argentina)
+[debug] [2026-10-22T15:16:42.099Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-22T15:16:46.115Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-22T15:16:46.115Z] > authorizing via signed-in user (nikomares04@gmail.com)
+[debug] [2026-10-22T15:16:46.116Z] [iam] checking project eltornillo-6af7d for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-10-22T15:16:46.117Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:46.117Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:46.117Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions [none]
+[debug] [2026-10-22T15:16:46.117Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions  x-goog-user-project=eltornillo-6af7d
+[debug] [2026-10-22T15:16:46.117Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-10-22T15:16:47.007Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions 200
+[debug] [2026-10-22T15:16:47.007Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'eltornillo-6af7d'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-10-22T15:16:47.009Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:47.009Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:47.010Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/eltornillo-6af7d/services/firestore.googleapis.com [none]
+[debug] [2026-10-22T15:16:47.010Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/eltornillo-6af7d/services/firestore.googleapis.com  x-goog-user-project=eltornillo-6af7d
+[debug] [2026-10-22T15:16:48.047Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/eltornillo-6af7d/services/firestore.googleapis.com 200
+[debug] [2026-10-22T15:16:48.047Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/eltornillo-6af7d/services/firestore.googleapis.com [omitted]
+[info] +  firestore: required API firestore.googleapis.com is enabled 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-10-22T15:16:48.054Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:48.054Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:48.054Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) [none]
+[debug] [2026-10-22T15:16:49.110Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) 200
+[debug] [2026-10-22T15:16:49.110Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) {"name":"projects/eltornillo-6af7d/databases/(default)","uid":"47ac89c8-7b13-41c1-b915-00c8cdedc00a","createTime":"2026-10-22T15:13:13.918265Z","updateTime":"2026-10-22T15:13:13.918265Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-10-22T15:13:13.918265Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"ILHk78/1zZcDMMGttu30zZcD"}
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-10-22T15:16:49.113Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:49.113Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:16:49.114Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test [none]
+[debug] [2026-10-22T15:16:49.114Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test [omitted]
+[debug] [2026-10-22T15:16:50.299Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test 200
+[debug] [2026-10-22T15:16:50.299Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test {"issues":[{"sourcePosition":{"fileName":"firestore.rules","line":1,"column":1},"description":"token recognition error at: '﻿'","severity":"ERROR"}]}
+[error] 
+[error] Error: Compilation error in firestore.rules:
+[E] 1:1 - token recognition error at: '﻿'
+[debug] [2026-10-22T15:17:00.616Z] ----------------------------------------------------------------------
+[debug] [2026-10-22T15:17:00.618Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nikom\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules --project eltornillo-6af7d --non-interactive
+[debug] [2026-10-22T15:17:00.618Z] CLI Version:   15.22.0
+[debug] [2026-10-22T15:17:00.618Z] Platform:      win32
+[debug] [2026-10-22T15:17:00.618Z] Node Version:  v24.14.0
+[debug] [2026-10-22T15:17:00.618Z] Detected Agent: codex_cli
+[debug] [2026-10-22T15:17:00.618Z] Time:          Thu Oct 22 2026 12:17:00 GMT-0300 (hora estándar de Argentina)
+[debug] [2026-10-22T15:17:00.618Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-22T15:17:01.534Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-22T15:17:01.534Z] > authorizing via signed-in user (nikomares04@gmail.com)
+[debug] [2026-10-22T15:17:01.534Z] [iam] checking project eltornillo-6af7d for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-10-22T15:17:01.535Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:01.535Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:01.536Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions [none]
+[debug] [2026-10-22T15:17:01.536Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions  x-goog-user-project=eltornillo-6af7d
+[debug] [2026-10-22T15:17:01.536Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-10-22T15:17:02.410Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions 200
+[debug] [2026-10-22T15:17:02.411Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/eltornillo-6af7d:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'eltornillo-6af7d'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-10-22T15:17:02.414Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:02.414Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:02.414Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) [none]
+[debug] [2026-10-22T15:17:03.412Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) 200
+[debug] [2026-10-22T15:17:03.412Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/eltornillo-6af7d/databases/(default) {"name":"projects/eltornillo-6af7d/databases/(default)","uid":"47ac89c8-7b13-41c1-b915-00c8cdedc00a","createTime":"2026-10-22T15:13:13.918265Z","updateTime":"2026-10-22T15:13:13.918265Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-10-22T15:13:13.918265Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IKrb2Nb1zZcDMMGttu30zZcD"}
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-10-22T15:17:03.416Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:03.416Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:03.416Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test [none]
+[debug] [2026-10-22T15:17:03.417Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test [omitted]
+[debug] [2026-10-22T15:17:04.548Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test 200
+[debug] [2026-10-22T15:17:04.548Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-10-22T15:17:04.549Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:04.549Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:04.549Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases pageSize=10&pageToken=
+[debug] [2026-10-22T15:17:05.661Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases 200
+[debug] [2026-10-22T15:17:05.661Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases {"releases":[{"name":"projects/eltornillo-6af7d/releases/cloud.firestore","rulesetName":"projects/eltornillo-6af7d/rulesets/91693d1d-ec26-43e3-85bb-3f26fb2ecb95","createTime":"2026-10-22T15:13:17.065149Z","updateTime":"2026-10-22T15:13:17.065149Z"}]}
+[debug] [2026-10-22T15:17:05.661Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:05.661Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:05.661Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets/91693d1d-ec26-43e3-85bb-3f26fb2ecb95 [none]
+[debug] [2026-10-22T15:17:06.746Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets/91693d1d-ec26-43e3-85bb-3f26fb2ecb95 200
+[debug] [2026-10-22T15:17:06.747Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets/91693d1d-ec26-43e3-85bb-3f26fb2ecb95 [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2026-10-22T15:17:06.747Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:06.748Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:06.748Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets [none]
+[debug] [2026-10-22T15:17:06.748Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets [omitted]
+[debug] [2026-10-22T15:17:07.991Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets 200
+[debug] [2026-10-22T15:17:07.991Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/rulesets {"name":"projects/eltornillo-6af7d/rulesets/ed9ba4bf-425f-4aa7-be7d-aa4c65716e1b","source":{"files":[{"content":"rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function signedIn() { return request.auth != null; }\n    function profile() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }\n    function general() { return signedIn() && profile().activo == true && profile().rol == 'superadmin'; }\n    function member(id) { return signedIn() && profile().activo == true && profile().empresaId == id; }\n    function validCompany() { return request.resource.data.keys().hasOnly(['nombre', 'activa']) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100 && request.resource.data.activa is bool; }\n    match /usuarios/{uid} {\n      allow get: if signedIn() && (request.auth.uid == uid || general());\n      allow list: if general();\n      allow create, update: if general() && uid != request.auth.uid\n        && request.resource.data.keys().hasOnly(['nombre', 'empresaId', 'rol', 'activo'])\n        && request.resource.data.nombre is string\n        && request.resource.data.activo is bool\n        && request.resource.data.rol in ['admin', 'vendedor']\n        && request.resource.data.empresaId is string\n        && exists(/databases/$(database)/documents/empresas/$(request.resource.data.empresaId));\n      allow delete: if general() && uid != request.auth.uid && resource.data.rol != 'superadmin';\n    }\n    match /empresas/{id} {\n      allow get: if general() || member(id);\n      allow list: if general();\n      allow create, update: if general() && validCompany();\n    }\n    // Only the display name and access status are public; directory listing is forbidden.\n    match /accesos/{id} {\n      allow get: if true;\n      allow list: if general();\n      allow create, update: if general() && validCompany();\n    }\n    // Business data is still local. All other cloud access is denied until its migration.\n    match /{document=**} { allow read, write: if false; }\n  }\n}\r\n","name":"firestore.rules"}]},"createTime":"2026-10-22T15:17:03.169855Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2026-10-22T15:17:07.991Z] [rules] created ruleset projects/eltornillo-6af7d/rulesets/ed9ba4bf-425f-4aa7-be7d-aa4c65716e1b
+[debug] [2026-10-22T15:17:07.992Z] [rules] releasing cloud.firestore with ruleset projects/eltornillo-6af7d/rulesets/ed9ba4bf-425f-4aa7-be7d-aa4c65716e1b
+[debug] [2026-10-22T15:17:07.992Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:07.992Z] Checked if tokens are valid: true, expires at: 1792685749552
+[debug] [2026-10-22T15:17:07.992Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases/cloud.firestore [none]
+[debug] [2026-10-22T15:17:07.992Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases/cloud.firestore {"release":{"name":"projects/eltornillo-6af7d/releases/cloud.firestore","rulesetName":"projects/eltornillo-6af7d/rulesets/ed9ba4bf-425f-4aa7-be7d-aa4c65716e1b"}}
+[debug] [2026-10-22T15:17:09.274Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases/cloud.firestore 200
+[debug] [2026-10-22T15:17:09.274Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/eltornillo-6af7d/releases/cloud.firestore {"name":"projects/eltornillo-6af7d/releases/cloud.firestore","rulesetName":"projects/eltornillo-6af7d/rulesets/ed9ba4bf-425f-4aa7-be7d-aa4c65716e1b","createTime":"2026-10-22T15:13:17.065149Z","updateTime":"2026-10-22T15:17:04.455029Z"}
+[debug] [2026-10-22T15:17:09.274Z] [rules] updated release projects/eltornillo-6af7d/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/eltornillo-6af7d/overview

@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
+import { useAuth } from "@/auth/auth-provider";
 import Link from "next/link";
 import { PhoneIcon } from "lucide-react";
 import { WhatsAppButton } from "@/components/clientes/whatsapp-button";
@@ -24,9 +25,11 @@ const CLAVE_LLAMADOS = "el-tornillo:llamados";
 
 /** Clientes ya llamados hoy: comodidad por usuario, se guarda en este navegador. */
 function useLlamados(hoy: string) {
+  const { perfil, usuario } = useAuth();
+  const clave = `${CLAVE_LLAMADOS}:${perfil?.empresaId}:${usuario.id}`;
   const [llamados, setLlamados] = useState<Record<string, string>>(() => {
     try {
-      return JSON.parse(localStorage.getItem(CLAVE_LLAMADOS) ?? "{}") as Record<string, string>;
+      return JSON.parse(localStorage.getItem(clave) ?? "{}") as Record<string, string>;
     } catch {
       return {};
     }
@@ -37,7 +40,7 @@ function useLlamados(hoy: string) {
     else delete nuevos[clienteId];
     setLlamados(nuevos);
     try {
-      localStorage.setItem(CLAVE_LLAMADOS, JSON.stringify(nuevos));
+      localStorage.setItem(clave, JSON.stringify(nuevos));
     } catch {
       // Sin almacenamiento: la marca dura mientras la pantalla esté abierta.
     }
@@ -195,3 +198,4 @@ export function CobranzaView() {
     </div>
   );
 }
+

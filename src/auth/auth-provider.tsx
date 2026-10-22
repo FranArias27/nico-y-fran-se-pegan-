@@ -1,72 +1,88 @@
-"use client";
+﻿"use client";
 
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { buscarUsuario, USUARIOS_DEMO, type Usuario } from "./demo-users";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
+import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, firestore } from "@/lib/firebase/client";
+import type { Usuario } from "./demo-users";
 import { tienePermiso, type Permiso } from "./permissions";
 
-/**
- * Sesión simulada: el usuario activo se elige con un selector en el
- * encabezado y se recuerda en localStorage. Al sumar login real, solo cambia
- * este provider; el resto de la app usa useAuth().
- */
-
-const CLAVE = "el-tornillo:usuario";
-const evento = "el-tornillo:usuario-cambio";
-
-function leerUsuarioId(): string {
-  try {
-    return localStorage.getItem(CLAVE) ?? USUARIOS_DEMO[0].id;
-  } catch {
-    return USUARIOS_DEMO[0].id;
-  }
-}
-
-function suscribir(callback: () => void) {
-  window.addEventListener(evento, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(evento, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
-
-interface AuthContexto {
+export interface Empresa { nombre: string; activa: boolean }
+export interface Perfil { nombre: string; empresaId: string; rol: "admin" | "vendedor"; activo: boolean }
+interface Sesion {
+  cuenta: User | null;
+  perfil: Perfil | null;
+  empresa: Empresa | null;
+  general: boolean;
+  cargando: boolean;
+  error: string | null;
   usuario: Usuario;
-  usuarios: readonly Usuario[];
-  cambiarUsuario: (id: string) => void;
   puede: (permiso: Permiso) => boolean;
+  salir: () => Promise<void>;
+  seleccionarEmpresa: (id: string | null) => void;
 }
-
-const Contexto = createContext<AuthContexto | null>(null);
-
+const Contexto = createContext<Sesion | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const usuarioId = useSyncExternalStore(suscribir, leerUsuarioId, () => USUARIOS_DEMO[0].id);
-  const usuario = buscarUsuario(usuarioId) ?? USUARIOS_DEMO[0];
-
-  const cambiarUsuario = useCallback((id: string) => {
-    try {
-      localStorage.setItem(CLAVE, id);
-    } catch {
-      // Sin almacenamiento disponible: el cambio dura hasta recargar.
-    }
-    window.dispatchEvent(new Event(evento));
+  const [estado, setEstado] = useState<Omit<Sesion, "usuario" | "puede" | "salir" | "seleccionarEmpresa">>({ cuenta: null, perfil: null, empresa: null, general: false, cargando: true, error: null });
+  useEffect(() => {
+    let limpiar = () => {};
+    const off = onAuthStateChanged(auth, (cuenta) => {
+      limpiar();
+      setEstado({ cuenta, perfil: null, empresa: null, general: false, cargando: !!cuenta, error: null });
+      if (!cuenta) return;
+      let offEmpresa = () => {};
+      const offPerfil = onSnapshot(doc(firestore, "usuarios", cuenta.uid), (snap) => {
+        offEmpresa();
+        const data = snap.data();
+        if (data?.rol === "superadmin" && data.activo === true) {
+          setEstado({ cuenta, perfil: null, empresa: null, general: true, cargando: false, error: null });
+          return;
+        }
+        if (!data || data.activo !== true || !["admin", "vendedor"].includes(data.rol) || typeof data.empresaId !== "string") {
+          setEstado({ cuenta, perfil: null, empresa: null, general: false, cargando: false, error: "Tu cuenta no tiene acceso activo. Contactá al administrador." });
+          return;
+        }
+        const perfil = data as Perfil;
+        setEstado({ cuenta, perfil: null, empresa: null, general: false, cargando: true, error: null });
+        offEmpresa = onSnapshot(doc(firestore, "empresas", perfil.empresaId), (empresaSnap) => {
+          const empresa = empresaSnap.data() as Empresa | undefined;
+          setEstado({ cuenta, perfil, empresa: empresa ?? null, general: false, cargando: false, error: empresa?.activa ? null : "El acceso de esta empresa está deshabilitado." });
+        }, () => setEstado({ cuenta, perfil: null, empresa: null, general: false, cargando: false, error: "No se pudo verificar el acceso a la empresa." }));
+      }, () => setEstado({ cuenta, perfil: null, empresa: null, general: false, cargando: false, error: "No se pudieron consultar los permisos. Verificá la conexión y las reglas de Firestore." }));
+      limpiar = () => { offPerfil(); offEmpresa(); };
+    });
+    return () => { off(); limpiar(); };
   }, []);
-
-  const valor = useMemo<AuthContexto>(
-    () => ({
-      usuario,
-      usuarios: USUARIOS_DEMO,
-      cambiarUsuario,
-      puede: (permiso) => tienePermiso(usuario.rol, permiso),
-    }),
-    [usuario, cambiarUsuario],
+  const clave = `el-tornillo:empresa-soporte:${estado.cuenta?.uid ?? ""}`;
+  const seleccion = useSyncExternalStore(
+    (callback) => { window.addEventListener("empresa-soporte", callback); return () => window.removeEventListener("empresa-soporte", callback); },
+    () => { try { return sessionStorage.getItem(clave) ?? ""; } catch { return ""; } },
+    () => "",
   );
-
-  return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
+  const [soporte, setSoporte] = useState<{ id: string; empresa: Empresa | null; error: string | null } | null>(null);
+  useEffect(() => {
+    if (!estado.general || !seleccion) return;
+    return onSnapshot(doc(firestore, "empresas", seleccion), snap => {
+      const empresa = snap.data() as Empresa | undefined;
+      setSoporte({ id: seleccion, empresa: empresa ?? null, error: empresa?.activa ? null : "La empresa no existe o está deshabilitada." });
+    }, () => setSoporte({ id: seleccion, empresa: null, error: "No se pudo abrir la empresa." }));
+  }, [estado.general, seleccion]);
+  const seleccionarEmpresa = (id: string | null) => {
+    if (!estado.general) return;
+    setSoporte(null);
+    try { if (id) sessionStorage.setItem(clave, id); else sessionStorage.removeItem(clave); } catch { return; }
+    window.dispatchEvent(new Event("empresa-soporte"));
+  };
+  const enSoporte = estado.general && !!seleccion;
+  const empresa = enSoporte ? soporte?.id === seleccion ? soporte.empresa : null : estado.empresa;
+  const perfil: Perfil | null = enSoporte && empresa ? { nombre: estado.cuenta?.email ?? "Administrador general", empresaId: seleccion, rol: "admin", activo: true } : estado.perfil;
+  const error = estado.error ?? (enSoporte && soporte?.id === seleccion ? soporte.error : null);
+  const usuario: Usuario = { id: estado.cuenta?.uid ?? "", nombre: perfil?.nombre ?? estado.cuenta?.email ?? "", rol: perfil?.rol ?? "vendedor" };
+  return <Contexto.Provider value={{ ...estado, perfil, empresa, error, cargando: estado.cargando || (enSoporte && soporte?.id !== seleccion), seleccionarEmpresa, usuario, puede: (p) => !error && !!perfil && !!empresa?.activa && tienePermiso(usuario.rol, p), salir: () => signOut(auth) }}>{children}</Contexto.Provider>;
 }
-
-export function useAuth(): AuthContexto {
+export function useAuth() {
   const ctx = useContext(Contexto);
-  if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>");
+  if (!ctx) throw new Error("useAuth requiere AuthProvider");
   return ctx;
 }
+

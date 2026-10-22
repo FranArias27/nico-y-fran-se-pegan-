@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +20,7 @@ function estaActivo(pathname: string, href: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { empresa } = useAuth();
   const items = useItemsVisibles();
 
   return (
@@ -31,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <WrenchIcon className="size-4" />
           </span>
           <span className="leading-tight">
-            <span className="block text-sm font-semibold">El Tornillo</span>
+            <span className="block text-sm font-semibold">{empresa?.nombre}</span>
             <span className="block text-xs text-muted-foreground">Mostrador y cobranza</span>
           </span>
         </Link>
@@ -65,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <WrenchIcon className="size-4" />
             </span>
-            <span className="text-sm font-semibold">El Tornillo</span>
+            <span className="text-sm font-semibold">{empresa?.nombre}</span>
           </Link>
           <div className="flex-1" />
           <UserSwitcher />
@@ -107,3 +108,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
