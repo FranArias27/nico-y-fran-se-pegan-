@@ -1,7 +1,6 @@
 import { ETIQUETA_CONDICION_IVA, ETIQUETA_MEDIO_PAGO, type Comercio, type Recibo } from "@/domain/types";
 import { formatCuit, formatDateTime, formatMoney, formatNumeroComprobante } from "@/lib/format";
 import type { FormatoImpresion } from "./impresion-provider";
-import { LEYENDA_DEMO } from "./comprobante-documento";
 
 export function ReciboDocumento({
   recibo,
@@ -70,7 +69,7 @@ export function ReciboDocumento({
       <div className={ticket ? "mt-6 text-center" : "mt-12 flex justify-end"}>
         <div className="w-48 border-t border-black pt-1 text-center">Firma y aclaración</div>
       </div>
-      <p className="mt-4 text-center text-[9px] text-black/60">{LEYENDA_DEMO}</p>
+      <p className="mt-4 text-center text-[9px] text-black/60">Documento no válido como factura</p>
     </div>
   );
 }

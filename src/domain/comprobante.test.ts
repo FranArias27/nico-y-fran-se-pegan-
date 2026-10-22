@@ -21,8 +21,31 @@ describe("tipo de comprobante", () => {
     expect(comprobantesDisponibles("RI", "CF")).toEqual(["B", "X"]);
   });
 
-  it("no contempla emisor monotributista", () => {
-    expect(() => tipoComprobanteSugerido("MONOTRIBUTO", "CF")).toThrow();
+  it("emisor monotributista o exento: siempre Factura C", () => {
+    expect(tipoComprobanteSugerido("MONOTRIBUTO", "CF")).toBe("C");
+    expect(tipoComprobanteSugerido("MONOTRIBUTO", "RI")).toBe("C");
+    expect(tipoComprobanteSugerido("EXENTO", "RI")).toBe("C");
+    expect(comprobantesDisponibles("MONOTRIBUTO", "RI")).toEqual(["C", "X"]);
+  });
+
+  it("un consumidor final no emite comprobantes", () => {
+    expect(() => tipoComprobanteSugerido("CF", "CF")).toThrow();
+  });
+});
+
+describe("Factura C", () => {
+  it("cobra el precio final y no informa IVA", () => {
+    const { totales, lineas } = calcularComprobante("C", [L1, L2]);
+    expect(totales.total).toBe(2 * 12100 + 22100);
+    expect(totales.iva).toBe(0);
+    expect(totales.neto).toBe(totales.total);
+    expect(totales.ivaPorAlicuota).toEqual([]);
+    expect(lineas[0]).toMatchObject({ neto: 24200, total: 24200, iva: 0 });
+  });
+
+  it("aplica el descuento total sobre el precio final", () => {
+    const { totales } = calcularComprobante("C", [L1], { tipo: "porcentaje", valor: 1000 });
+    expect(totales.total).toBe(21780);
   });
 });
 

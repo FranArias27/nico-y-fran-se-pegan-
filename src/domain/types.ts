@@ -40,13 +40,27 @@ export const ETIQUETA_ALICUOTA: Record<AlicuotaIva, string> = {
   0: "Exento",
 };
 
-/** A y B son fiscales; X es la nota de pedido (no fiscal, sin IVA). */
-export type TipoComprobante = "A" | "B" | "X";
+/**
+ * A y B los emite un responsable inscripto; C, un monotributista o exento.
+ * X es la nota de pedido (no fiscal, sin IVA).
+ */
+export type TipoComprobante = "A" | "B" | "C" | "X";
 
 export const ETIQUETA_COMPROBANTE: Record<TipoComprobante, string> = {
   A: "Factura A",
   B: "Factura B",
+  C: "Factura C",
   X: "Nota de pedido",
+};
+
+/** Una nota de crédito anula total o parcialmente una factura (o una nota de pedido). */
+export type ClaseComprobante = "factura" | "nota_credito";
+
+export const ETIQUETA_NOTA_CREDITO: Record<TipoComprobante, string> = {
+  A: "Nota de crédito A",
+  B: "Nota de crédito B",
+  C: "Nota de crédito C",
+  X: "Devolución",
 };
 
 export interface Comercio {
@@ -61,6 +75,11 @@ export interface Comercio {
   telefono: string;
   email: string;
   puntoVenta: number;
+  /**
+   * Certificado de ARCA cargado (lo escribe solo el servidor). Sin él, un
+   * comercio real solo puede emitir notas de pedido.
+   */
+  certificadoArca?: { entorno: "homologacion" | "produccion"; vence: FechaHoraISO };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +233,23 @@ export interface DatosFiscales {
   caeVencimiento: FechaISO;
   /** Contenido del QR del comprobante. */
   qrUrl: string;
+  /** CAE ficticio: el comprobante no tiene validez fiscal. */
+  simulado?: boolean;
+}
+
+/** Comprobante que anula una nota de crédito. */
+export interface ComprobanteAsociado {
+  ventaId: string;
+  tipo: TipoComprobante;
+  puntoVenta: number;
+  numero: number;
+  fecha: FechaHoraISO;
 }
 
 export interface Venta {
   id: string;
+  /** Sin definir equivale a "factura" (los datos anteriores no lo tienen). */
+  clase?: ClaseComprobante;
   tipo: TipoComprobante;
   puntoVenta: number;
   numero: number;
@@ -228,6 +260,9 @@ export interface Venta {
   clienteCondicionIva: CondicionIva;
   clienteDocumento: string;
   vendedorId: string;
+  vendedorNombre?: string;
+  /** Solo en notas de crédito: la factura que anulan. */
+  asociado?: ComprobanteAsociado;
   lineas: LineaVenta[];
   descuentoTotal?: Descuento;
   totales: TotalesComprobante;

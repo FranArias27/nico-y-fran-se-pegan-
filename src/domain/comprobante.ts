@@ -1,31 +1,60 @@
 import { multiplicarCantidad, porcentaje, prorratear, redondear, sumar } from "./dinero";
 import { quitarIva } from "./precios";
-import type {
-  AlicuotaIva,
-  Centavos,
-  CondicionIva,
-  Descuento,
-  IvaPorAlicuota,
-  Milesimas,
-  TipoComprobante,
-  TotalesComprobante,
+import {
+  ETIQUETA_COMPROBANTE,
+  ETIQUETA_NOTA_CREDITO,
+  type AlicuotaIva,
+  type Centavos,
+  type ClaseComprobante,
+  type CondicionIva,
+  type Descuento,
+  type IvaPorAlicuota,
+  type Milesimas,
+  type TipoComprobante,
+  type TotalesComprobante,
+  type Venta,
 } from "./types";
 
 export const LEYENDA_TRANSPARENCIA_FISCAL =
   "Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)";
 
 /**
- * Comprobante fiscal que corresponde según emisor y cliente. El prototipo
- * contempla solo emisor responsable inscripto (Factura A o B).
+ * Comprobante fiscal que corresponde según emisor y cliente: el responsable
+ * inscripto emite A (a otro inscripto) o B; el monotributista y el exento, C.
  */
 export function tipoComprobanteSugerido(
   emisor: CondicionIva,
   cliente: CondicionIva,
 ): Exclude<TipoComprobante, "X"> {
-  if (emisor !== "RI") {
-    throw new Error("Solo se contempla emisor responsable inscripto");
-  }
+  if (emisor === "MONOTRIBUTO" || emisor === "EXENTO") return "C";
+  if (emisor !== "RI") throw new Error("Un consumidor final no puede emitir comprobantes");
   return cliente === "RI" ? "A" : "B";
+}
+
+/** Condiciones frente al IVA que puede tener el comercio que factura. */
+export const CONDICIONES_EMISOR: readonly CondicionIva[] = ["RI", "MONOTRIBUTO", "EXENTO"];
+
+export function esNotaCredito(venta: Pick<Venta, "clase">): boolean {
+  return venta.clase === "nota_credito";
+}
+
+export function etiquetaComprobante(venta: Pick<Venta, "clase" | "tipo">): string {
+  return (esNotaCredito(venta) ? ETIQUETA_NOTA_CREDITO : ETIQUETA_COMPROBANTE)[venta.tipo];
+}
+
+/** Códigos de comprobante de ARCA (tabla de tipos de comprobante de WSFEv1). */
+const CODIGOS_ARCA: Record<ClaseComprobante, Record<Exclude<TipoComprobante, "X">, number>> = {
+  factura: { A: 1, B: 6, C: 11 },
+  nota_credito: { A: 3, B: 8, C: 13 },
+};
+
+export function codigoArca(clase: ClaseComprobante, tipo: Exclude<TipoComprobante, "X">): number {
+  return CODIGOS_ARCA[clase][tipo];
+}
+
+/** En B y C los precios se muestran con todo incluido; en A y X, netos. */
+export function muestraPrecioFinal(tipo: TipoComprobante): boolean {
+  return tipo === "B" || tipo === "C";
 }
 
 /** Comprobantes que se pueden emitir a un cliente: el sugerido y la nota de pedido. */
@@ -74,6 +103,8 @@ export function importeDescuento(base: Centavos, descuento: Descuento | undefine
  * - Factura A: IVA = neto × alícuota, calculado por alícuota.
  * - Factura B: el total sale de los precios finales (con el redondeo a la
  *   centena aplicado) y el IVA contenido se obtiene de ese total.
+ * - Factura C: el total sale de los precios finales y no se informa IVA
+ *   (el monotributista no lo discrimina).
  * - Nota de pedido (X): precio neto, sin IVA.
  */
 export function calcularComprobante(
@@ -123,7 +154,12 @@ export function calcularComprobante(
   }));
   const ivaPorAlicuota: IvaPorAlicuota[] = [];
 
-  if (tipo !== "X") {
+  if (tipo === "C") {
+    paso2.forEach((l, i) => {
+      resultado[i].neto = l.final;
+      resultado[i].total = l.final;
+    });
+  } else if (tipo !== "X") {
     const alicuotas = [...new Set(paso2.map((l) => l.alicuota))].sort((a, b) => b - a);
     for (const alicuota of alicuotas) {
       const indices = paso2.flatMap((l, i) => (l.alicuota === alicuota ? [i] : []));

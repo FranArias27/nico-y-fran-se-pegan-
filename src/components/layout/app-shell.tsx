@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -77,6 +77,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
         </header>
 
+        {empresa?.demo && (
+          <p className="bg-amber-100 px-4 py-1 text-center text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200 print:hidden">
+            Empresa de demostración · datos de ejemplo y facturas sin validez fiscal
+          </p>
+        )}
         <main className="flex-1 pb-20 md:pb-0">{children}</main>
       </div>
 

@@ -134,6 +134,7 @@ export function crearDexieStore(nombre = "el-tornillo-demo"): Store {
         return db.ventas.where("fecha").between(desde, hasta, true, false).toArray();
       },
       listarPorCliente: (clienteId) => db.ventas.where("clienteId").equals(clienteId).sortBy("fecha"),
+      listarNotasDe: (ventaId) => db.ventas.filter((v) => v.asociado?.ventaId === ventaId).sortBy("fecha"),
       obtener: (id) => db.ventas.get(id),
       agregar: (venta) => escribir(db.ventas.add(venta).then(() => {})),
     },

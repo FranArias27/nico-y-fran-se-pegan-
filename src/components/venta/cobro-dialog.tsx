@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { calcularCobro, MEDIOS_COBRO } from "@/domain/cobro";
+import { calcularCobro } from "@/domain/cobro";
 import { evaluarVentaACuenta } from "@/domain/cuenta-corriente";
 import {
   ETIQUETA_COMPROBANTE,
@@ -58,6 +58,8 @@ interface Props {
   totales: Record<TipoComprobante, Centavos>;
   cliente: Cliente;
   saldoCliente: Centavos;
+  /** Medios ofrecidos: en las empresas reales no está el QR (Mercado Pago aún no está integrado). */
+  medios: readonly MedioPago[];
   onConfirmar: (pagos: Pago[]) => Promise<void>;
 }
 
@@ -71,7 +73,7 @@ export function CobroDialog(props: Props) {
   );
 }
 
-function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConfirmar }: Props) {
+function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConfirmar, medios }: Props) {
   const servicios = useServicios();
   const total = totales[tipo];
   const [lineas, setLineas] = useState<LineaPago[]>([{ clave: 1, medio: "efectivo", texto: texto(total) }]);
@@ -124,7 +126,7 @@ function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConf
   function agregarLinea() {
     setTocado(true);
     const usados = new Set(lineas.map((l) => l.medio));
-    const medio = MEDIOS_COBRO.find((m) => !usados.has(m) && m !== "cuenta_corriente") ?? "transferencia";
+    const medio = medios.find((m) => !usados.has(m) && m !== "cuenta_corriente") ?? "transferencia";
     setLineas((ls) => [...ls, { clave: Math.max(...ls.map((l) => l.clave)) + 1, medio, texto: texto(cobro.faltante) }]);
   }
 
@@ -173,7 +175,7 @@ function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConf
           >
             <p className="text-sm font-semibold">{ETIQUETA_COMPROBANTE[t]}</p>
             <p className="text-xs text-muted-foreground">
-              {t === "A" ? "IVA discriminado" : t === "B" ? "IVA incluido" : "No fiscal, sin IVA"}
+              {t === "A" ? "IVA discriminado" : t === "B" ? "IVA incluido" : t === "C" ? "Sin discriminar IVA" : "No fiscal, sin IVA"}
             </p>
             <Money value={totales[t]} className="mt-1 block text-lg font-bold" />
           </button>
@@ -194,7 +196,7 @@ function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConf
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MEDIOS_COBRO.map((m) => (
+                    {medios.map((m) => (
                       <SelectItem key={m} value={m} disabled={m === "cuenta_corriente" && !cliente.cuentaCorriente}>
                         {ETIQUETA_MEDIO_PAGO[m]}
                       </SelectItem>
@@ -326,7 +328,7 @@ function CobroForm({ tipos, tipo, onTipo, totales, cliente, saldoCliente, onConf
         {procesando ? (
           <>
             <Loader2Icon className="animate-spin" />
-            {tipo === "X" ? "Registrando…" : "Solicitando CAE a ARCA (simulado)…"}
+            {tipo === "X" ? "Registrando…" : "Solicitando CAE a ARCA…"}
           </>
         ) : qrPendiente ? (
           "Falta acreditar el pago con QR"

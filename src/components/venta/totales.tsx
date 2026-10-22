@@ -11,13 +11,14 @@ function Fila({ etiqueta, valor, tenue }: { etiqueta: React.ReactNode; valor: nu
   );
 }
 
-/** Desglose de totales según el comprobante (A: IVA discriminado; B: contenido; X: sin IVA). */
+/** Desglose de totales según el comprobante (A: IVA discriminado; B: contenido; C: sin discriminar; X: sin IVA). */
 export function Totales({ tipo, totales }: { tipo: TipoComprobante; totales: TotalesComprobante }) {
   const gravados = totales.ivaPorAlicuota.filter((g) => g.alicuota > 0);
   return (
     <div className="grid gap-1.5">
-      <Fila etiqueta="Subtotal neto" valor={totales.netoBruto} tenue />
-      {totales.descuentos > 0 && <Fila etiqueta="Descuentos" valor={-totales.descuentos} tenue />}
+      {tipo !== "C" && <Fila etiqueta="Subtotal neto" valor={totales.netoBruto} tenue />}
+      {tipo !== "C" && totales.descuentos > 0 && <Fila etiqueta="Descuentos" valor={-totales.descuentos} tenue />}
+      {tipo === "C" && <p className="text-xs text-muted-foreground">Factura C: el IVA no se discrimina.</p>}
       {tipo === "A" &&
         gravados.map((g) => <Fila key={g.alicuota} etiqueta={`IVA ${ETIQUETA_ALICUOTA[g.alicuota]}`} valor={g.iva} tenue />)}
       {tipo === "X" && <p className="text-xs text-muted-foreground">Nota de pedido: sin IVA.</p>}

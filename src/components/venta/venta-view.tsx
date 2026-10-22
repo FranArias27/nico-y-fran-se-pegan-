@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ClockIcon, PauseIcon, UserRoundIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/auth-provider";
+import { MEDIOS_COBRO } from "@/domain/cobro";
 import { DescuentoEditor } from "@/components/common/descuento-editor";
 import { EstadoClienteBadge } from "@/components/common/estado-cliente-badge";
 import { Kbd } from "@/components/common/kbd";
@@ -109,7 +110,8 @@ function TarjetaCliente({ cliente, saldo, onCambiar }: { cliente: Cliente; saldo
 
 export function VentaView() {
   const servicios = useServicios();
-  const { usuario, puede } = useAuth();
+  const { usuario, puede, empresa } = useAuth();
+  const demo = empresa?.demo === true;
   const { venta, actualizar, reiniciar } = useVentaActual();
 
   const { datos: articulos } = useConsulta((s) => s.articulos.listar());
@@ -132,8 +134,11 @@ export function VentaView() {
   const cliente =
     clientes?.find((c) => c.id === venta.clienteId) ?? clientes?.find((c) => c.id === CLIENTE_CONSUMIDOR_FINAL_ID);
 
-  const tipos: TipoComprobante[] =
-    comercio && cliente ? comprobantesDisponibles(comercio.condicionIva, cliente.condicionIva) : ["B", "X"];
+  // Una empresa real factura recién con el certificado de ARCA cargado; antes, solo nota de pedido.
+  const factura = demo || !!comercio?.certificadoArca;
+  const tipos: TipoComprobante[] = (
+    comercio && cliente ? comprobantesDisponibles(comercio.condicionIva, cliente.condicionIva) : (["B", "X"] as TipoComprobante[])
+  ).filter((t) => t === "X" || factura);
   const tipo = venta.tipo && tipos.includes(venta.tipo) ? venta.tipo : tipos[0];
 
   // Se calcula para cada comprobante posible: el modal de cobro muestra ambos totales.
@@ -189,6 +194,7 @@ export function VentaView() {
         descuentoTotal: venta.descuentoTotal,
         pagos,
         vendedorId: usuario.id,
+        vendedorNombre: usuario.nombre,
       });
       setCobroAbierto(false);
       reiniciar();
@@ -343,6 +349,9 @@ export function VentaView() {
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Comprobante</span>
             <Badge variant="outline">{ETIQUETA_COMPROBANTE[tipo]}</Badge>
+            {!factura && (
+              <span className="text-xs text-muted-foreground">Para facturar, cargá el certificado de ARCA en Configuración</span>
+            )}
           </div>
           {puede("aplicarDescuentos") && (
             <DescuentoEditor
@@ -409,6 +418,7 @@ export function VentaView() {
         totales={totalesPorTipo}
         cliente={cliente}
         saldoCliente={cuenta?.cliente.id === cliente.id ? cuenta.resumen.saldo : 0}
+        medios={demo ? MEDIOS_COBRO : MEDIOS_COBRO.filter((m) => m !== "qr")}
         onConfirmar={confirmarCobro}
       />
 

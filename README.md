@@ -2,7 +2,7 @@
 
 Prototipo navegable de un sistema de **punto de venta, stock, facturación y cuenta corriente** para comercios argentinos (ferreterías, corralones, almacenes, distribuidores). El diferencial es unir el mostrador con la cobranza de lo que se vende "a cuenta".
 
-Es una demo: **no tiene backend, login ni conexión real con ARCA o Mercado Pago**. Esas partes están simuladas detrás de interfaces, listas para reemplazarse por integraciones reales.
+Usa Firebase (Authentication y Firestore) para el login y los datos de cada empresa; ver [FIREBASE.md](FIREBASE.md). Las empresas reales facturan con ARCA (ver [ARCA.md](ARCA.md)); solo la empresa de demostración usa datos de ejemplo y facturación simulada. **Mercado Pago todavía no está integrado:** el cobro con QR existe solo en la demo.
 
 ## Requisitos
 
@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Abrí <http://localhost:3000>. La primera vez se cargan los datos de ejemplo en el navegador; tarda un segundo.
+Abrí <http://localhost:3000> e ingresá con un usuario creado desde `/admin` (ver [FIREBASE.md](FIREBASE.md)).
 
 | Comando | Qué hace |
 | --- | --- |
@@ -45,7 +45,7 @@ npx vercel        # la primera vez pide iniciar sesión y vincular el proyecto
 npx vercel --prod # publica en producción
 ```
 
-> Cada dispositivo tiene sus propios datos: lo que se carga en la PC no aparece en el celular. Para empezar de cero, usá **Configuración → Reiniciar datos demo**.
+> Los datos se guardan en Firestore y se comparten entre los dispositivos de la empresa. Para mostrar el sistema, creen desde `/admin` una **empresa de demostración** con su usuario: arranca con la ferretería de ejemplo y se reinicia desde **Configuración → Reiniciar demo**.
 
 ## Cómo mostrar la demo
 
@@ -113,13 +113,13 @@ La UI **nunca** accede a los datos directamente: usa los servicios mediante `use
 Todas las implementaciones se eligen en un solo lugar: `src/components/providers/servicios-provider.tsx`.
 
 - **Base de datos real (Postgres):** escribir una implementación de la interfaz `Store` (`src/data/store.ts`), por ejemplo con Drizzle o Prisma detrás de rutas API o Server Actions, y mover `src/services` al servidor. La lógica de `src/domain` se reutiliza tal cual.
-- **ARCA:** implementar `FiscalProvider.autorizar()` contra el web service de factura electrónica (WSFEv1) desde el backend, con certificado y token del WSAA. Hoy `crearArcaSimulado()` devuelve un CAE ficticio.
+- **ARCA:** ya está implementado en el servidor (`src/server/arca`, WSAA + WSFEv1). Las empresas reales facturan con ARCA en cuanto cargan su certificado; la de demostración, simulado. Ver [ARCA.md](ARCA.md).
 - **Mercado Pago:** implementar `PaymentProvider` con la API de QR dinámico y de links de pago, y confirmar los cobros con webhooks. Hoy `crearMercadoPagoSimulado()` aprueba el QR a los pocos segundos.
 - **Login y roles:** reemplazar `AuthProvider` (`src/auth`). El resto de la app solo usa `useAuth()` y `puede(permiso)`.
 
 ## Fuera de alcance (pensado para después)
 
-Backend y base de datos reales, login real, integración real con ARCA y Mercado Pago, importación desde Excel, caja con apertura y arqueo, inventario, devoluciones, notas de crédito desde la UI (existen en el modelo y en los datos de ejemplo), roles personalizados, Factura C (emisor monotributista) y listas de precios múltiples.
+Backend y base de datos reales, login real, integración real con ARCA y Mercado Pago, importación desde Excel, caja con apertura y arqueo, inventario, devoluciones, roles personalizados, facturas de servicios y en moneda extranjera, contingencia sin conexión con ARCA (CAEA) y listas de precios múltiples.
 
 ## Stack
 

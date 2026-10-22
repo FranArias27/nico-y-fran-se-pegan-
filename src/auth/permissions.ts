@@ -5,10 +5,11 @@ export type Permiso =
   | "editarPrecios" // alta/edición de artículos y modificación masiva
   | "verReportes"
   | "aplicarDescuentos"
+  | "emitirNotasCredito"
   | "configurar";
 
 const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
-  admin: ["verCostos", "editarPrecios", "verReportes", "aplicarDescuentos", "configurar"],
+  admin: ["verCostos", "editarPrecios", "verReportes", "aplicarDescuentos", "emitirNotasCredito", "configurar"],
   vendedor: [],
 };
 

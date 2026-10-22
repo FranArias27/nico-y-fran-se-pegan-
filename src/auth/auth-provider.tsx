@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
@@ -7,7 +7,8 @@ import { auth, firestore } from "@/lib/firebase/client";
 import type { Usuario } from "./demo-users";
 import { tienePermiso, type Permiso } from "./permissions";
 
-export interface Empresa { nombre: string; activa: boolean }
+/** `demo`: empresa de demostración, con datos de ejemplo y facturación simulada. */
+export interface Empresa { nombre: string; activa: boolean; demo?: boolean }
 export interface Perfil { nombre: string; empresaId: string; rol: "admin" | "vendedor"; activo: boolean }
 interface Sesion {
   cuenta: User | null;

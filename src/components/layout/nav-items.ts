@@ -2,6 +2,7 @@ import {
   BarChart3Icon,
   HandCoinsIcon,
   PackageIcon,
+  ReceiptTextIcon,
   SettingsIcon,
   ShoppingCartIcon,
   UsersIcon,
@@ -22,6 +23,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/venta", etiqueta: "Venta", corta: "Venta", icono: ShoppingCartIcon },
+  { href: "/ventas", etiqueta: "Comprobantes", corta: "Comprob.", icono: ReceiptTextIcon, enBarraMovil: false },
   { href: "/articulos", etiqueta: "Artículos", corta: "Artículos", icono: PackageIcon },
   { href: "/clientes", etiqueta: "Clientes", corta: "Clientes", icono: UsersIcon },
   { href: "/cobranza", etiqueta: "Cobranza", corta: "Cobranza", icono: HandCoinsIcon },

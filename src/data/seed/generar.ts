@@ -19,7 +19,9 @@ import type {
   Venta,
 } from "@/domain/types";
 import { CLIENTE_CONSUMIDOR_FINAL_ID, UNIDAD } from "@/domain/types";
-import { caeFicticio, urlQrComprobante } from "@/integrations/fiscal/simulated-arca";
+import { codigoArca } from "@/domain/comprobante";
+import { urlQrComprobante } from "@/integrations/fiscal/arca-datos";
+import { caeFicticio } from "@/integrations/fiscal/simulated-arca";
 import { formatNumeroComprobante } from "@/lib/format";
 import { descripcionComprobante } from "@/services/ventas";
 import type { DatosIniciales } from "../store";
@@ -343,18 +345,18 @@ export function generarDatosDemo(ahoraDate: Date): DatosIniciales {
       vuelto: cobro.vuelto,
     };
     if (tipo !== "X") {
-      const solicitud = {
-        comercio: COMERCIO_DEMO,
-        tipo,
-        puntoVenta: PUNTO_VENTA,
-        numero,
+      const cae = caeFicticio({ tipo, puntoVenta: PUNTO_VENTA, numero, fecha: fechaHora });
+      const qrUrl = urlQrComprobante({
         fecha: fechaHora,
+        cuit: COMERCIO_DEMO.cuit,
+        puntoVenta: PUNTO_VENTA,
+        codigoComprobante: codigoArca("factura", tipo),
+        numero,
         total,
-        clienteCondicionIva: cliente.condicionIva,
         clienteDocumento: cliente.documento,
-      };
-      const cae = caeFicticio(solicitud);
-      venta.fiscal = { cae, caeVencimiento: sumarDias(fecha, 10), qrUrl: urlQrComprobante(solicitud, cae) };
+        cae,
+      });
+      venta.fiscal = { cae, caeVencimiento: sumarDias(fecha, 10), qrUrl, simulado: true };
     }
     ventas.push(venta);
 

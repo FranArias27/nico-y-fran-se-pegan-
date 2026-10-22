@@ -45,6 +45,8 @@ export interface VentasRepo {
   /** Ventas del rango de fechas (locales, inclusive) o todas. */
   listar(rango?: Rango): Promise<Venta[]>;
   listarPorCliente(clienteId: string): Promise<Venta[]>;
+  /** Notas de crédito emitidas sobre una venta, de la más vieja a la más nueva. */
+  listarNotasDe(ventaId: string): Promise<Venta[]>;
   obtener(id: string): Promise<Venta | undefined>;
   agregar(venta: Venta): Promise<void>;
 }

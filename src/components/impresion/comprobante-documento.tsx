@@ -1,4 +1,10 @@
-import { LEYENDA_TRANSPARENCIA_FISCAL } from "@/domain/comprobante";
+import {
+  codigoArca,
+  esNotaCredito,
+  etiquetaComprobante,
+  LEYENDA_TRANSPARENCIA_FISCAL,
+  muestraPrecioFinal,
+} from "@/domain/comprobante";
 import { porcentaje } from "@/domain/dinero";
 import {
   ETIQUETA_ALICUOTA,
@@ -20,23 +26,44 @@ import {
 import { QrImage } from "./qr-image";
 import type { FormatoImpresion } from "./impresion-provider";
 
-const TITULO = { A: "FACTURA", B: "FACTURA", X: "NOTA DE PEDIDO" } as const;
-const CODIGO = { A: "COD. 01", B: "COD. 06", X: "" } as const;
+function titulo(venta: Venta) {
+  if (venta.tipo === "X") return esNotaCredito(venta) ? "DEVOLUCIÓN" : "NOTA DE PEDIDO";
+  return esNotaCredito(venta) ? "NOTA DE CRÉDITO" : "FACTURA";
+}
 
-export const LEYENDA_DEMO = "Comprobante de demostración generado por un prototipo · Sin validez fiscal";
+function codigo(venta: Venta) {
+  if (venta.tipo === "X") return "";
+  return `COD. ${String(codigoArca(esNotaCredito(venta) ? "nota_credito" : "factura", venta.tipo)).padStart(2, "0")}`;
+}
 
-/** En Factura B los precios van con IVA incluido; en A y X, netos. */
+export const LEYENDA_SIMULADO = "Comprobante de prueba con CAE simulado · Sin validez fiscal";
+
+/** En B y C los precios van con todo incluido; en A y X, netos. */
 function precioUnitario(venta: Venta, l: LineaVenta) {
-  return venta.tipo === "B" ? l.precioFinal : l.precioNeto;
+  return muestraPrecioFinal(venta.tipo) ? l.precioFinal : l.precioNeto;
 }
 
 function importeLinea(venta: Venta, l: LineaVenta) {
-  return venta.tipo === "B" ? l.total : l.neto;
+  return muestraPrecioFinal(venta.tipo) ? l.total : l.neto;
 }
 
 function bonificacion(venta: Venta, l: LineaVenta) {
   if (l.descuentoNeto <= 0) return 0;
-  return venta.tipo === "B" ? l.descuentoNeto + porcentaje(l.descuentoNeto, l.alicuotaIva) : l.descuentoNeto;
+  return muestraPrecioFinal(venta.tipo)
+    ? l.descuentoNeto + porcentaje(l.descuentoNeto, l.alicuotaIva)
+    : l.descuentoNeto;
+}
+
+function Asociado({ venta }: { venta: Venta }) {
+  if (!venta.asociado) return null;
+  const a = venta.asociado;
+  return (
+    <p>
+      <span className="font-semibold">Comprobante asociado:</span>{" "}
+      {etiquetaComprobante({ clase: "factura", tipo: a.tipo })} {formatNumeroComprobante(a.puntoVenta, a.numero)} del{" "}
+      {formatDate(a.fecha)}
+    </p>
+  );
 }
 
 function documentoCliente(venta: Venta) {
@@ -48,6 +75,10 @@ function documentoCliente(venta: Venta) {
 
 function condicionVenta(venta: Venta) {
   return venta.pagos.some((p) => p.medio === "cuenta_corriente") ? "Cuenta corriente" : "Contado";
+}
+
+function Leyenda({ venta, className }: { venta: Venta; className: string }) {
+  return venta.fiscal?.simulado ? <p className={className}>{LEYENDA_SIMULADO}</p> : null;
 }
 
 function Totales({ venta, compacto = false }: { venta: Venta; compacto?: boolean }) {
@@ -127,7 +158,9 @@ function PieFiscal({ venta, qr }: { venta: Venta; qr: number }) {
     <div className="flex items-center gap-3">
       <QrImage texto={venta.fiscal.qrUrl} tamano={qr} />
       <div className="text-xs leading-snug">
-        <p className="font-semibold">ARCA · Comprobante autorizado</p>
+        <p className="font-semibold">
+          {venta.fiscal.simulado ? "CAE simulado · sin validez fiscal" : "ARCA · Comprobante autorizado"}
+        </p>
         <p>CAE N.º {venta.fiscal.cae}</p>
         <p>Vto. CAE {formatDate(venta.fiscal.caeVencimiento + "T00:00:00")}</p>
       </div>
@@ -148,7 +181,7 @@ function DocumentoA4({ venta, comercio, vendedor }: { venta: Venta; comercio: Co
           <p className="mt-1 font-semibold">IVA {ETIQUETA_CONDICION_IVA[comercio.condicionIva]}</p>
         </div>
         <div className="p-4 pl-10">
-          <p className="text-xl font-bold">{TITULO[venta.tipo]}</p>
+          <p className="text-xl font-bold">{titulo(venta)}</p>
           <p className="font-semibold">N.º {formatNumeroComprobante(venta.puntoVenta, venta.numero)}</p>
           <p>Fecha: {formatDate(venta.fecha)}</p>
           <p className="mt-2">CUIT: {formatCuit(comercio.cuit)}</p>
@@ -157,7 +190,7 @@ function DocumentoA4({ venta, comercio, vendedor }: { venta: Venta; comercio: Co
         </div>
         <div className="absolute top-0 left-1/2 flex w-14 -translate-x-1/2 flex-col items-center border-x border-b border-black bg-white py-1">
           <span className="text-3xl leading-none font-bold">{venta.tipo}</span>
-          <span className="text-[9px]">{CODIGO[venta.tipo]}</span>
+          <span className="text-[9px]">{codigo(venta)}</span>
         </div>
       </div>
 
@@ -174,6 +207,9 @@ function DocumentoA4({ venta, comercio, vendedor }: { venta: Venta; comercio: Co
         <p>
           <span className="font-semibold">Condición de venta:</span> {condicionVenta(venta)}
         </p>
+        <div className="col-span-2">
+          <Asociado venta={venta} />
+        </div>
       </div>
 
       <table className="mt-3 w-full border-collapse">
@@ -207,7 +243,7 @@ function DocumentoA4({ venta, comercio, vendedor }: { venta: Venta; comercio: Co
 
       <div className="mt-4 flex items-start justify-between gap-6">
         <div className="text-xs">
-          <p className="mb-1 font-semibold">Forma de pago</p>
+          <p className="mb-1 font-semibold">{esNotaCredito(venta) ? "Reintegro" : "Forma de pago"}</p>
           <Pagos venta={venta} />
           {vendedor && <p className="mt-2">Atendió: {vendedor}</p>}
         </div>
@@ -219,7 +255,7 @@ function DocumentoA4({ venta, comercio, vendedor }: { venta: Venta; comercio: Co
       <div className="mt-6 border-t border-black pt-3">
         <PieFiscal venta={venta} qr={96} />
       </div>
-      <p className="mt-4 text-center text-[10px] text-black/60">{LEYENDA_DEMO}</p>
+      <Leyenda venta={venta} className="mt-4 text-center text-[10px] text-black/60" />
     </div>
   );
 }
@@ -239,7 +275,7 @@ function DocumentoTicket({ venta, comercio, vendedor }: { venta: Venta; comercio
       </div>
       <div className="my-2 border-y border-dashed border-black py-1 text-center">
         <p className="text-sm font-bold">
-          {TITULO[venta.tipo]} {venta.tipo} {CODIGO[venta.tipo] && `(${CODIGO[venta.tipo]})`}
+          {titulo(venta)} {venta.tipo} {codigo(venta) && `(${codigo(venta)})`}
         </p>
         <p>N.º {formatNumeroComprobante(venta.puntoVenta, venta.numero)}</p>
         <p>{formatDateTime(venta.fecha)}</p>
@@ -249,6 +285,7 @@ function DocumentoTicket({ venta, comercio, vendedor }: { venta: Venta; comercio
         {venta.clienteDocumento && <p>{documentoCliente(venta)}</p>}
         <p>{ETIQUETA_CONDICION_IVA[venta.clienteCondicionIva]}</p>
         <p>Cond. venta: {condicionVenta(venta)}</p>
+        <Asociado venta={venta} />
       </div>
       <div className="my-2 border-t border-dashed border-black pt-1">
         {venta.lineas.map((l) => (
@@ -280,8 +317,8 @@ function DocumentoTicket({ venta, comercio, vendedor }: { venta: Venta; comercio
       <div className="mt-2 border-t border-dashed border-black pt-2">
         <PieFiscal venta={venta} qr={88} />
       </div>
-      <p className="mt-2 text-center">¡Gracias por su compra!</p>
-      <p className="mt-1 text-center text-[9px]">{LEYENDA_DEMO}</p>
+      {!esNotaCredito(venta) && <p className="mt-2 text-center">¡Gracias por su compra!</p>}
+      <Leyenda venta={venta} className="mt-1 text-center text-[9px]" />
     </div>
   );
 }

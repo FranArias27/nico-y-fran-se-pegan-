@@ -1,5 +1,6 @@
 import { rangoAnterior, type Periodo, type Rango } from "@/domain/fechas";
 import {
+  aplicarNotasCredito,
   descuentosOtorgados,
   resumirVentas,
   ventasBajoCosto,
@@ -19,8 +20,8 @@ export interface FiltroReporte {
 export async function generarReporte(ctx: Contexto, filtro: FiltroReporte) {
   const anterior = rangoAnterior(filtro.rango, filtro.periodo);
   const [ventas, ventasAnteriores, categorias] = await Promise.all([
-    ctx.store.ventas.listar(filtro.rango),
-    ctx.store.ventas.listar(anterior),
+    ctx.store.ventas.listar(filtro.rango).then(aplicarNotasCredito),
+    ctx.store.ventas.listar(anterior).then(aplicarNotasCredito),
     ctx.store.categorias.listar(),
   ]);
   const nombres = new Map(categorias.map((c) => [c.id, c.nombre]));

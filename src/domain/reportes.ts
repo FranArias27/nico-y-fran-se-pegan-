@@ -1,3 +1,4 @@
+import { esNotaCredito } from "./comprobante";
 import { multiplicarCantidad, sumar } from "./dinero";
 import { diasDelRango, fechaDe, type Rango } from "./fechas";
 import type { Centavos, LineaVenta, MedioPago, Milesimas, PuntosBasicos, Venta } from "./types";
@@ -13,6 +14,44 @@ export function gananciaLinea(linea: LineaVenta): Centavos {
 /** Margen sobre la venta neta, en puntos básicos (null si no hubo ventas). */
 export function margenSobreNeto(ganancia: Centavos, neto: Centavos): PuntosBasicos | null {
   return neto > 0 ? Math.round((ganancia / neto) * 10000) : null;
+}
+
+/**
+ * Las notas de crédito restan: devuelve las ventas con los importes y
+ * cantidades de las notas en negativo, listas para sumar con el resto.
+ */
+export function aplicarNotasCredito(ventas: readonly Venta[]): Venta[] {
+  return ventas.map((v) => {
+    if (!esNotaCredito(v)) return v;
+    const t = v.totales;
+    return {
+      ...v,
+      lineas: v.lineas.map((l) => ({
+        ...l,
+        cantidad: -l.cantidad,
+        netoBruto: -l.netoBruto,
+        descuentoNeto: -l.descuentoNeto,
+        neto: -l.neto,
+        iva: -l.iva,
+        total: -l.total,
+      })),
+      totales: {
+        netoBruto: -t.netoBruto,
+        descuentos: -t.descuentos,
+        neto: -t.neto,
+        iva: -t.iva,
+        ivaPorAlicuota: t.ivaPorAlicuota.map((g) => ({ ...g, neto: -g.neto, iva: -g.iva })),
+        total: -t.total,
+      },
+      pagos: v.pagos.map((p) => ({ ...p, importe: -p.importe })),
+      vuelto: 0,
+    };
+  });
+}
+
+/** Cantidad de operaciones de venta (las notas de crédito no cuentan como una venta más). */
+function operaciones(ventas: readonly Venta[]): number {
+  return ventas.filter((v) => !esNotaCredito(v)).length;
 }
 
 export interface ResumenVentas {
@@ -33,14 +72,15 @@ export function resumirVentas(ventas: readonly Venta[]): ResumenVentas {
   const total = sumar(ventas, (v) => v.totales.total);
   const neto = sumar(lineas, (l) => l.neto);
   const costo = sumar(lineas, costoLinea);
+  const cantidad = operaciones(ventas);
   return {
-    cantidad: ventas.length,
+    cantidad,
     total,
     neto,
     costo,
     ganancia: neto - costo,
     margen: margenSobreNeto(neto - costo, neto),
-    ticketPromedio: ventas.length > 0 ? Math.round(total / ventas.length) : 0,
+    ticketPromedio: cantidad > 0 ? Math.round(total / cantidad) : 0,
     descuentos: sumar(lineas, (l) => l.descuentoNeto),
   };
 }
@@ -58,7 +98,7 @@ export function ventasPorDia(ventas: readonly Venta[], rango: Rango): VentasDelD
     const dia = porDia.get(fechaDe(v.fecha));
     if (!dia) continue;
     dia.total += v.totales.total;
-    dia.cantidad += 1;
+    if (!esNotaCredito(v)) dia.cantidad += 1;
     dia.ganancia += sumar(v.lineas, gananciaLinea);
   }
   return [...porDia.values()];
@@ -86,7 +126,8 @@ export function ventasPorVendedor(ventas: readonly Venta[]): VentasPorVendedor[]
   return [...agrupar(ventas, (v) => v.vendedorId)]
     .map(([vendedorId, vs]) => {
       const total = sumar(vs, (v) => v.totales.total);
-      return { vendedorId, total, cantidad: vs.length, ticketPromedio: Math.round(total / vs.length) };
+      const cantidad = operaciones(vs);
+      return { vendedorId, total, cantidad, ticketPromedio: cantidad > 0 ? Math.round(total / cantidad) : 0 };
     })
     .sort((a, b) => b.total - a.total);
 }
@@ -163,6 +204,7 @@ export interface VentaBajoCosto {
 export function ventasBajoCosto(ventas: readonly Venta[]): VentaBajoCosto[] {
   const resultado: VentaBajoCosto[] = [];
   for (const v of ventas) {
+    if (esNotaCredito(v)) continue;
     for (const l of v.lineas) {
       const costo = costoLinea(l);
       if (l.neto >= costo) continue;
@@ -198,7 +240,7 @@ export interface DescuentoOtorgado {
 
 export function descuentosOtorgados(ventas: readonly Venta[]): DescuentoOtorgado[] {
   return ventas
-    .filter((v) => v.totales.descuentos > 0)
+    .filter((v) => !esNotaCredito(v) && v.totales.descuentos > 0)
     .map((v) => ({
       ventaId: v.id,
       fecha: v.fecha,

@@ -5,13 +5,17 @@ service cloud.firestore {
     function profile() { return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data; }
     function general() { return signedIn() && profile().activo == true && profile().rol == 'superadmin'; }
     function member(id) { return signedIn() && profile().activo == true && profile().empresaId == id; }
-    function validCompany() { return request.resource.data.keys().hasOnly(['nombre', 'activa']) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100 && request.resource.data.activa is bool; }
+    function validCompany() { return request.resource.data.keys().hasOnly(['nombre', 'activa', 'demo']) && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100 && request.resource.data.activa is bool && request.resource.data.get('demo', false) is bool; }
     match /usuarios/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || general());
       allow list: if general();
+      // Superadmins manage company users, never another superadmin (that is done from the console).
       allow create, update: if general() && uid != request.auth.uid
-        && request.resource.data.keys().hasOnly(['nombre', 'empresaId', 'rol', 'activo'])
+        && (resource == null || resource.data.rol != 'superadmin')
+        && request.resource.data.keys().hasOnly(['nombre', 'email', 'empresaId', 'rol', 'activo'])
         && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100
+        && (!('email' in request.resource.data) || request.resource.data.email is string)
         && request.resource.data.activo is bool
         && request.resource.data.rol in ['admin', 'vendedor']
         && request.resource.data.empresaId is string
@@ -21,7 +25,9 @@ service cloud.firestore {
     match /empresas/{id} {
       allow get: if general() || member(id);
       allow list: if general();
-      allow create, update: if general() && validCompany();
+      allow create: if general() && validCompany();
+      // A company is created as demo or real and can never switch: real data must not mix with demo resets.
+      allow update: if general() && validCompany() && request.resource.data.get('demo', false) == resource.data.get('demo', false);
     }
     // Only the display name and access status are public; directory listing is forbidden.
     match /accesos/{id} {
@@ -29,7 +35,79 @@ service cloud.firestore {
       allow list: if general();
       allow create, update: if general() && validCompany();
     }
-    // Business data is still local. All other cloud access is denied until its migration.
+    // Business data: empresas/{empresaId}/{coleccion}/{docId}.
+    // The superadmin (support mode) and the company admin manage the business;
+    // a vendedor can sell and collect but cannot change prices or config.
+    // Data is only ever deleted in demo companies (demo reset): real records are kept.
+    match /empresas/{empresaId} {
+      function active() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.activa == true; }
+      function staff() { return general() || (member(empresaId) && active()); }
+      function admin() { return general() || (member(empresaId) && active() && profile().rol == 'admin'); }
+      function own(field) { return request.resource.data[field] == request.auth.uid; }
+      function changes(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+      function demo() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.get('demo', false) == true; }
+      function wipe() { return admin() && demo(); }
+
+      // certificadoArca is written only by the server when a certificate is uploaded.
+      function certificateUntouched() {
+        return request.resource.data.get('certificadoArca', null)
+          == (resource == null ? null : resource.data.get('certificadoArca', null));
+      }
+      match /config/{id} {
+        allow read: if staff();
+        allow create, update: if admin() && (demo() || certificateUntouched());
+        allow delete: if wipe();
+      }
+      match /categorias/{id} {
+        allow read: if staff();
+        allow create, update: if admin();
+        allow delete: if wipe();
+      }
+      match /articulos/{id} {
+        allow read: if staff();
+        allow create: if admin();
+        allow delete: if wipe();
+        // Sales only adjust stock.
+        allow update: if admin() || (staff() && changes(['stock']));
+      }
+      match /clientes/{id} {
+        allow read, create, update: if staff();
+        allow delete: if wipe();
+      }
+      match /ventas/{id} {
+        allow read: if staff();
+        // Only admins grant discounts and issue credit notes. Line prices cannot be checked here (no loops in rules).
+        allow create: if admin() || (staff() && own('vendedorId')
+          && request.resource.data.get('clase', 'factura') == 'factura'
+          && request.resource.data.totales.descuentos == 0);
+        allow update: if false;
+        allow delete: if wipe();
+      }
+      match /movimientos/{id} {
+        allow read, create: if staff();
+        // A sale applies the customer's credit balance by adding imputaciones.
+        allow update: if admin() || (staff() && changes(['imputaciones']));
+        allow delete: if wipe();
+      }
+      match /recibos/{id} {
+        allow read: if staff();
+        allow create: if admin() || (staff() && own('usuarioId'));
+        allow update: if false;
+        allow delete: if wipe();
+      }
+      match /enEspera/{id} {
+        allow read, write: if staff();
+      }
+      match /contadores/{id} {
+        allow read: if staff();
+        // Numbering only moves forward one step at a time.
+        allow create: if admin() || (staff() && request.resource.data.ultimo == 1);
+        allow update: if admin() || (staff() && request.resource.data.ultimo == resource.data.ultimo + 1);
+        allow delete: if wipe();
+      }
+    }
+
+    // Everything else, including arcaCredenciales (ARCA private keys), is server-only.
     match /{document=**} { allow read, write: if false; }
   }
 }

@@ -14,9 +14,10 @@ const AHORA = new Date(2026, 9, 21, 16, 30); // miércoles 21/10/2026 16:30
 
 function crearContexto(): Contexto {
   let n = 0;
+  const store = crearDexieStore(`test-${Math.random()}`);
   return {
-    store: crearDexieStore(`test-${Math.random()}`),
-    fiscal: crearArcaSimulado({ demoraMs: 0 }),
+    store,
+    fiscal: crearArcaSimulado({ demoraMs: 0, numerar: (clave) => store.contadores.siguiente(clave) }),
     pagos: crearMercadoPagoSimulado({ aprobarEnMs: 0 }),
     ahora: () => AHORA,
     nuevoId: () => `id-${++n}`,
@@ -27,7 +28,7 @@ const ctx = crearContexto();
 const s = crearServicios(ctx);
 
 beforeAll(async () => {
-  await s.demo.asegurarDatos();
+  await s.demo.reiniciar();
 });
 
 describe("datos demo", () => {
@@ -214,5 +215,207 @@ describe("reportes", () => {
     expect(r.rangoAnterior).toEqual({ desde: "2026-09-01", hasta: "2026-09-21" });
     expect(r.porVendedor).toHaveLength(2);
     expect(r.porDia).toHaveLength(21);
+  });
+});
+
+describe("empresa nueva", () => {
+  const nueva = crearServicios(crearContexto());
+
+  it("arranca vacía, sin datos de ejemplo", async () => {
+    expect(await nueva.demo.estaVacia()).toBe(true);
+    await nueva.demo.inicializarEmpresa("Kiosco Mauro");
+    expect(await nueva.demo.estaVacia()).toBe(false);
+    const [comercio, articulos, clientes, categorias] = await Promise.all([
+      nueva.demo.obtenerComercio(),
+      nueva.articulos.listar(),
+      nueva.clientes.listar(),
+      nueva.articulos.listarCategorias(),
+    ]);
+    expect(comercio.razonSocial).toBe("Kiosco Mauro");
+    expect(articulos).toHaveLength(0);
+    expect(clientes.map((c) => c.id)).toEqual(["cf"]);
+    expect(categorias).toHaveLength(1);
+  });
+
+  it("no vuelve a inicializar una empresa con datos", async () => {
+    await nueva.clientes.guardar({
+      razonSocial: "Cliente real",
+      condicionIva: "CF",
+      documento: "",
+      cuentaCorriente: false,
+      limiteCredito: 0,
+      plazoDias: 0,
+      estado: "habilitado",
+    });
+    await nueva.demo.inicializarEmpresa("Kiosco Mauro");
+    expect(await nueva.clientes.listar()).toHaveLength(2);
+  });
+
+  it("no emite facturas sin CUIT del comercio, pero sí notas de pedido", async () => {
+    const articulo = await nueva.articulos.guardar({
+      codigo: "A-1",
+      nombre: "Alfajor",
+      marca: "",
+      categoriaId: "general",
+      unidad: "unidad",
+      costo: 50000,
+      margen: 5000,
+      alicuotaIva: 2100,
+      redondeo: "ninguno",
+      precioNetoBase: 75000,
+      stock: 10000,
+      stockMinimo: 0,
+      codigosBarra: [],
+      activo: true,
+    });
+    const venta = (tipo: "B" | "X") =>
+      nueva.ventas.registrar({
+        tipo,
+        clienteId: "cf",
+        items: [{ articuloId: articulo.id, cantidad: 1000 }],
+        pagos: [{ medio: "efectivo", importe: 10_000_000 }],
+        vendedorId: "u-1",
+      });
+    await expect(venta("B")).rejects.toThrow(/CUIT/);
+    await expect(venta("X")).resolves.toMatchObject({ tipo: "X" });
+  });
+});
+
+describe("notas de crédito", () => {
+  it("anula una venta a cuenta: devuelve el stock y cancela la deuda", async () => {
+    const articulos = await s.articulos.listar();
+    const art = articulos.find((a) => a.precioFinal > 100000)!;
+    const { calculo } = await import("@/domain/carrito").then((m) =>
+      m.armarLineas("A", [{ articuloId: art.id, cantidad: 2000 }], new Map([[art.id, art]])),
+    );
+    const venta = await s.ventas.registrar({
+      tipo: "A",
+      clienteId: "cli-17",
+      items: [{ articuloId: art.id, cantidad: 2000 }],
+      pagos: [{ medio: "cuenta_corriente", importe: calculo.totales.total }],
+      vendedorId: "u-admin",
+    });
+    const stockAntes = (await s.articulos.obtener(art.id))!.stock;
+    const deudaAntes = (await s.cuentaCorriente.deCliente("cli-17"))!.resumen.deuda;
+
+    const nota = await s.ventas.emitirNotaCredito({
+      ventaId: venta.id,
+      devoluciones: [{ articuloId: art.id, cantidad: 2000 }],
+      reintegro: "cuenta_corriente",
+      reponerStock: true,
+      vendedorId: "u-admin",
+    });
+
+    expect(nota).toMatchObject({ clase: "nota_credito", tipo: "A", asociado: { ventaId: venta.id } });
+    expect(nota.totales.total).toBe(venta.totales.total);
+    expect(nota.fiscal?.cae).toMatch(/^\d{14}$/);
+    expect((await s.articulos.obtener(art.id))!.stock).toBe(stockAntes + 2000);
+    expect((await s.cuentaCorriente.deCliente("cli-17"))!.resumen.deuda).toBe(deudaAntes - venta.totales.total);
+    expect(await s.ventas.notasDeCredito(venta.id)).toHaveLength(1);
+  });
+
+  it("numera las notas de crédito aparte de las facturas", async () => {
+    const articulos = await s.articulos.listar();
+    const venta = await s.ventas.registrar({
+      tipo: "B",
+      clienteId: "cf",
+      items: [{ articuloId: articulos[1].id, cantidad: 3000 }],
+      pagos: [{ medio: "efectivo", importe: 100_000_000 }],
+      vendedorId: "u-admin",
+    });
+    const n1 = await s.ventas.emitirNotaCredito({
+      ventaId: venta.id,
+      devoluciones: [{ articuloId: articulos[1].id, cantidad: 1000 }],
+      reintegro: "efectivo",
+      reponerStock: false,
+      vendedorId: "u-admin",
+    });
+    const n2 = await s.ventas.emitirNotaCredito({
+      ventaId: venta.id,
+      devoluciones: [{ articuloId: articulos[1].id, cantidad: 1000 }],
+      reintegro: "efectivo",
+      reponerStock: false,
+      vendedorId: "u-admin",
+    });
+    expect(n2.numero).toBe(n1.numero + 1);
+    expect(n1.pagos).toEqual([{ medio: "efectivo", importe: n1.totales.total }]);
+    await expect(
+      s.ventas.emitirNotaCredito({
+        ventaId: venta.id,
+        devoluciones: [{ articuloId: articulos[1].id, cantidad: 2000 }],
+        reintegro: "efectivo",
+        reponerStock: false,
+        vendedorId: "u-admin",
+      }),
+    ).rejects.toBeInstanceOf(ErrorDeNegocio);
+  });
+
+  it("no acredita en cuenta corriente a un cliente sin cuenta", async () => {
+    const articulos = await s.articulos.listar();
+    const venta = await s.ventas.registrar({
+      tipo: "B",
+      clienteId: "cf",
+      items: [{ articuloId: articulos[2].id, cantidad: 1000 }],
+      pagos: [{ medio: "efectivo", importe: 100_000_000 }],
+      vendedorId: "u-admin",
+    });
+    await expect(
+      s.ventas.emitirNotaCredito({
+        ventaId: venta.id,
+        devoluciones: [{ articuloId: articulos[2].id, cantidad: 1000 }],
+        reintegro: "cuenta_corriente",
+        reponerStock: true,
+        vendedorId: "u-admin",
+      }),
+    ).rejects.toThrow(/cuenta corriente/);
+  });
+
+  it("los reportes restan las notas de crédito", async () => {
+    const hoy = { desde: "2026-10-21", hasta: "2026-10-21" };
+    const ventas = await s.ventas.listar(hoy);
+    const facturado = ventas.filter((v) => v.clase !== "nota_credito").reduce((t, v) => t + v.totales.total, 0);
+    const acreditado = ventas.filter((v) => v.clase === "nota_credito").reduce((t, v) => t + v.totales.total, 0);
+    expect(acreditado).toBeGreaterThan(0);
+    const r = await s.reportes.generar({ periodo: "rango", rango: hoy });
+    expect(r.resumen.total).toBe(facturado - acreditado);
+    expect(r.resumen.cantidad).toBe(ventas.filter((v) => v.clase !== "nota_credito").length);
+  });
+});
+
+describe("comercio monotributista", () => {
+  it("emite Factura C y rechaza A o B", async () => {
+    const mono = crearServicios(crearContexto());
+    await mono.demo.inicializarEmpresa("Kiosco");
+    const comercio = await mono.demo.obtenerComercio();
+    await mono.demo.guardarComercio({ ...comercio, condicionIva: "MONOTRIBUTO", cuit: "20123456786" });
+    const art = await mono.articulos.guardar({
+      codigo: "G-1",
+      nombre: "Gaseosa",
+      marca: "",
+      categoriaId: "general",
+      unidad: "unidad",
+      costo: 100000,
+      margen: 5000,
+      alicuotaIva: 2100,
+      redondeo: "ninguno",
+      precioNetoBase: 150000,
+      stock: 5000,
+      stockMinimo: 0,
+      codigosBarra: [],
+      activo: true,
+    });
+    const vender = (tipo: "B" | "C") =>
+      mono.ventas.registrar({
+        tipo,
+        clienteId: "cf",
+        items: [{ articuloId: art.id, cantidad: 1000 }],
+        pagos: [{ medio: "efectivo", importe: art.precioFinal }],
+        vendedorId: "u-1",
+      });
+    await expect(vender("B")).rejects.toBeInstanceOf(ErrorDeNegocio);
+    const venta = await vender("C");
+    expect(venta.totales).toMatchObject({ total: art.precioFinal, iva: 0, ivaPorAlicuota: [] });
+    expect(venta.numero).toBe(1);
+    expect(venta.fiscal?.simulado).toBe(true);
   });
 });

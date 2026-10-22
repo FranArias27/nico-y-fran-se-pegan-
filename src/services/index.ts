@@ -33,6 +33,9 @@ export function crearServicios(ctx: Contexto) {
     ventas: {
       registrar: (input: ventas.NuevaVenta) => ventas.registrarVenta(ctx, input),
       obtener: (id: string) => ventas.obtenerVenta(ctx, id),
+      listar: (rango: Parameters<typeof ventas.listarVentas>[1]) => ventas.listarVentas(ctx, rango),
+      notasDeCredito: (ventaId: string) => ventas.notasDeCredito(ctx, ventaId),
+      emitirNotaCredito: (input: ventas.NuevaNotaCredito) => ventas.emitirNotaCredito(ctx, input),
       ponerEnEspera: (datos: Parameters<typeof ventas.ponerEnEspera>[1]) => ventas.ponerEnEspera(ctx, datos),
       listarEnEspera: () => ventas.listarEnEspera(ctx),
       retomarEnEspera: (id: string) => ventas.retomarEnEspera(ctx, id),
@@ -43,7 +46,8 @@ export function crearServicios(ctx: Contexto) {
     },
     demo: {
       reiniciar: () => demo.reiniciarDatosDemo(ctx),
-      asegurarDatos: () => demo.asegurarDatosDemo(ctx),
+      estaVacia: () => demo.estaVacia(ctx),
+      inicializarEmpresa: (nombre: string) => demo.inicializarEmpresa(ctx, nombre),
       obtenerComercio: () => demo.obtenerComercio(ctx),
       guardarComercio: (comercio: Parameters<typeof demo.guardarComercio>[1]) => demo.guardarComercio(ctx, comercio),
     },
