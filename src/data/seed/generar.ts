@@ -395,7 +395,8 @@ export function generarDatosDemo(ahoraDate: Date): DatosIniciales {
     const sabado = diaSemana === 6;
     const inicioDelDia = new Date(a, m - 1, d).toISOString();
     const crecimiento = 1 + 0.15 * (1 - diasAtras / DIAS_HISTORIAL);
-    const cantidad = Math.round((sabado ? azar.entero(8, 14) : azar.entero(16, 30)) * crecimiento);
+    // Pocas ventas por día: alcanzan para los reportes y cada reinicio de la demo escribe ~1.200 documentos.
+    const cantidad = Math.round((sabado ? azar.entero(2, 4) : azar.entero(4, 7)) * crecimiento);
 
     const minutos = Array.from({ length: cantidad }, () => minutoDelDia(azar, sabado))
       .filter((min) => diasAtras > 0 || min <= minutoActual)

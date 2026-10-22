@@ -19,7 +19,7 @@ import {
   type WriteBatch,
 } from "firebase/firestore";
 import { desdeFechaISO, sumarDias, type Rango } from "@/domain/fechas";
-import type { Comercio } from "@/domain/types";
+import type { Comercio, Movimiento } from "@/domain/types";
 import {
   unirArticulo,
   unirTodos,
@@ -74,12 +74,29 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     return snap.exists() ? (snap.data() as T) : undefined;
   };
 
+  // --- Colecciones en memoria -------------------------------------------------
+  // Mientras hay pantallas abiertas, los listeners de escucharCambios() mantienen
+  // estas colecciones al día: cada cambio trae solo los documentos modificados, en
+  // vez de volver a leer la colección entera (Firestore cobra cada lectura).
+  type Cacheada = "config" | "categorias" | "articulos" | "costos" | "clientes" | "movimientos" | "enEspera";
+  const cache = new Map<Cacheada, Map<string, DocumentData>>();
+  const todos = <T>(nombre: Cacheada): Promise<T[]> => {
+    const enMemoria = cache.get(nombre);
+    return enMemoria ? Promise.resolve([...enMemoria.values()] as T[]) : leer(col<T>(nombre));
+  };
+  const uno = <T>(nombre: Coleccion, id: string): Promise<T | undefined> => {
+    const enMemoria = cache.get(nombre as Cacheada);
+    return enMemoria ? Promise.resolve(enMemoria.get(id) as T | undefined) : leerUno<T>(nombre, id);
+  };
+
   // --- Costos (solo administradores) ----------------------------------------
   type ColeccionCostos = "costos" | "ventasCostos";
   const porId = <C>(docs: { id: string; data: () => DocumentData }[]) => new Map(docs.map((d) => [d.id, d.data() as C]));
 
   async function costosDe<C>(nombre: ColeccionCostos, q?: Query): Promise<Map<string, C>> {
     if (!opciones.verCostos) return new Map();
+    const enMemoria = !q && cache.get(nombre as Cacheada);
+    if (enMemoria) return enMemoria as Map<string, C>;
     return porId<C>((await getDocs(q ?? col(nombre))).docs);
   }
 
@@ -92,7 +109,7 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
   }
 
   const costoDe = <C>(nombre: ColeccionCostos, id: string) =>
-    opciones.verCostos ? leerUno<C>(nombre, id) : Promise.resolve(undefined);
+    opciones.verCostos ? uno<C>(nombre, id) : Promise.resolve(undefined);
 
   async function leerVentas(q: Query<VentaPublica>, qCostos?: Query) {
     const publicas = await leer(q);
@@ -123,22 +140,30 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
    * todo el historial, de las ventas solo se escucha la última.
    */
   function escucharCambios() {
-    const consultas: Query[] = [
-      col("config"),
-      col("articulos"),
-      col("clientes"),
-      col("movimientos"),
-      col("enEspera"),
-      query(col("ventas"), orderBy("fecha", "desc"), limit(1)),
-    ];
-    const bajas = consultas.map((q) => {
+    const cacheadas: Cacheada[] = ["config", "categorias", "articulos", "clientes", "movimientos", "enEspera"];
+    if (opciones.verCostos) cacheadas.push("costos");
+    const bajas = cacheadas.map((nombre) => {
       let primera = true;
-      return onSnapshot(q, () => {
+      return onSnapshot(col(nombre), { includeMetadataChanges: true }, (snap) => {
+        // Lo que viene de la caché del navegador puede estar incompleto hasta que confirma el servidor.
+        if (!snap.metadata.fromCache || cache.has(nombre)) {
+          cache.set(nombre, new Map(snap.docs.map((d) => [d.id, d.data()])));
+        }
         if (primera) primera = false;
-        else notificar();
+        else if (snap.docChanges().length > 0) notificar();
       });
     });
-    return () => bajas.forEach((baja) => baja());
+    let primera = true;
+    bajas.push(
+      onSnapshot(query(col("ventas"), orderBy("fecha", "desc"), limit(1)), () => {
+        if (primera) primera = false;
+        else notificar();
+      }),
+    );
+    return () => {
+      bajas.forEach((baja) => baja());
+      cache.clear();
+    };
   }
 
   // --- Escrituras -----------------------------------------------------------
@@ -179,7 +204,7 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
   return {
     comercio: {
       async obtener() {
-        const comercio = await leerUno<Comercio>("config", "comercio");
+        const comercio = await uno<Comercio>("config", "comercio");
         if (!comercio) throw new Error("No hay datos del comercio cargados");
         return comercio;
       },
@@ -188,20 +213,20 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     },
 
     categorias: {
-      listar: () => leer(col("categorias")),
+      listar: () => todos("categorias"),
     },
 
     articulos: {
       async listar() {
         const [publicos, costos] = await Promise.all([
-          leer(col<ArticuloPublico>("articulos")),
+          todos<ArticuloPublico>("articulos"),
           costosDe<CostoArticulo>("costos"),
         ]);
         return unirTodos(publicos, costos, unirArticulo);
       },
       async obtener(id) {
         const [publico, costo] = await Promise.all([
-          leerUno<ArticuloPublico>("articulos", id),
+          uno<ArticuloPublico>("articulos", id),
           costoDe<CostoArticulo>("costos", id),
         ]);
         return publico && unirArticulo(publico, costo);
@@ -212,8 +237,8 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     },
 
     clientes: {
-      listar: () => leer(col("clientes")),
-      obtener: (id) => leerUno("clientes", id),
+      listar: () => todos("clientes"),
+      obtener: (id) => uno("clientes", id),
       guardar: (c) => escribir((b) => b.set(ref("clientes", c.id), c)),
     },
 
@@ -246,9 +271,14 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     },
 
     movimientos: {
-      listar: () => leer(col("movimientos")),
-      listarPorCliente: async (clienteId) =>
-        porFecha(await leer(query(col("movimientos"), where("clienteId", "==", clienteId)))),
+      listar: () => todos("movimientos"),
+      async listarPorCliente(clienteId) {
+        const enMemoria = cache.get("movimientos");
+        const movimientos = enMemoria
+          ? ([...enMemoria.values()] as Movimiento[]).filter((m) => m.clienteId === clienteId)
+          : await leer(query(col<Movimiento>("movimientos"), where("clienteId", "==", clienteId)));
+        return porFecha(movimientos);
+      },
       guardar: (m) => escribir((b) => b.set(ref("movimientos", m.id), m)),
       guardarVarios: (ms) => escribirVarios(ms, (b, m) => b.set(ref("movimientos", m.id), m)),
     },
@@ -260,7 +290,7 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     },
 
     enEspera: {
-      listar: () => leer(col("enEspera")),
+      listar: () => todos("enEspera"),
       guardar: (v) => escribir((b) => b.set(ref("enEspera", v.id), v)),
       eliminar: (id) => escribir((b) => b.delete(ref("enEspera", id))),
     },

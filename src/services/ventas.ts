@@ -71,17 +71,19 @@ async function numerarYAutorizar(
 
 export async function registrarVenta(ctx: Contexto, input: NuevaVenta): Promise<Venta> {
   const { store } = ctx;
+  // Solo los artículos vendidos: leer el catálogo entero en cada venta multiplica las lecturas.
+  const ids = [...new Set(input.items.map((i) => i.articuloId))];
   const [comercio, cliente, articulos] = await Promise.all([
     store.comercio.obtener(),
     store.clientes.obtener(input.clienteId),
-    store.articulos.listar(),
+    Promise.all(ids.map((id) => store.articulos.obtener(id))),
   ]);
   if (!cliente) throw new ErrorDeNegocio("El cliente no existe");
   if (!comprobantesDisponibles(comercio.condicionIva, cliente.condicionIva).includes(input.tipo)) {
     throw new ErrorDeNegocio("Ese comprobante no corresponde a la condición de IVA del comercio y del cliente");
   }
 
-  const mapa = new Map(articulos.map((a) => [a.id, a]));
+  const mapa = new Map(articulos.flatMap((a) => (a ? [[a.id, a] as const] : [])));
   const { lineas, calculo } = armarLineas(input.tipo, input.items, mapa, input.descuentoTotal);
   if (lineas.length === 0) throw new ErrorDeNegocio("La venta no tiene artículos");
 

@@ -41,7 +41,7 @@ describe("datos demo", () => {
     expect(articulos.length).toBeGreaterThanOrEqual(60);
     expect(clientes).toHaveLength(26);
     expect(clientes[0].razonSocial).toBe("Consumidor final");
-    expect(ventas.length).toBeGreaterThan(1000);
+    expect(ventas.length).toBeGreaterThan(300);
     expect(new Set(ventas.map((v) => v.vendedorId))).toEqual(new Set(["u-admin", "u-lucia"]));
   });
 

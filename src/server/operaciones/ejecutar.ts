@@ -39,8 +39,9 @@ interface FiscalGuardado {
  *   reintenta), se devuelve lo ya registrado en vez de duplicarlo.
  * - El CAE se guarda ahí antes de registrar la venta. Si algo falla después,
  *   no se pierde: el reintento lo reutiliza en vez de pedir otro, y una
- *   operación con `fiscal` y sin `completada` es un comprobante autorizado
- *   que no quedó registrado.
+ *   operación con `fiscal` cuya venta no existe es un comprobante autorizado
+ *   que no quedó registrado. (No se marca como completada: la venta o el
+ *   recibo con el mismo id ya lo indican, y es una escritura menos.)
  */
 export async function ejecutarOperacion(uid: string, pedido: Pedido): Promise<Venta | Recibo> {
   const { empresaId, id, accion } = pedido;
@@ -121,7 +122,6 @@ export async function ejecutarOperacion(uid: string, pedido: Pedido): Promise<Ve
         : pedido.accion === "nota_credito"
           ? await emitirNotaCredito(ctx, { ...pedido.datos, id, ...usuario })
           : await registrarPago(ctx, { ...pedido.datos, id, usuarioId: uid });
-    await operacion.update({ completada: ahora() });
     return paraElUsuario(registrado);
   } catch (e) {
     // Con un comprobante autorizado, la operación se conserva y queda libre para que un reintento lo use.

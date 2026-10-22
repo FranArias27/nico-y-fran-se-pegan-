@@ -18,7 +18,7 @@ La app emite Factura A, B y C y sus notas de crédito con el web service de fact
 - **Un CAE no se pierde.**
   - Si ARCA no responde a tiempo, el servidor consulta (`FECompConsultar`) si el comprobante quedó autorizado igual, y en ese caso lo usa.
   - El CAE se anota en `empresas/{empresa}/operaciones/{id}` antes de guardar la venta. Si se corta la conexión, el navegador reintenta con el mismo id y el servidor usa ese CAE en vez de pedir otro; si la venta ya estaba guardada, la devuelve sin duplicarla.
-  - Una operación con `fiscal` y sin `completada` es un comprobante autorizado que no quedó registrado: revisarla desde la consola de Firestore.
+  - Una operación con `fiscal` cuya venta (mismo id en `ventas`) no existe es un comprobante autorizado que no quedó registrado: revisarla desde la consola de Firestore.
 
 ## 1. Variables de entorno del servidor (una sola vez)
 
