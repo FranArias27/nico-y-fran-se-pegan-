@@ -87,7 +87,7 @@ function leerVenta(v: unknown): DatosVenta {
     clienteId: texto(d.clienteId),
     items: lista(
       d.items,
-      500,
+      100,
       (x) => {
         const i = objeto(x);
         return { articuloId: texto(i.articuloId), cantidad: entero(i.cantidad, 1), descuento: descuento(i.descuento) };
@@ -114,7 +114,7 @@ function leerNotaCredito(v: unknown): DatosNotaCredito {
     ventaId: texto(d.ventaId),
     devoluciones: lista(
       d.devoluciones,
-      500,
+      100,
       (x) => {
         const i = objeto(x);
         return { articuloId: texto(i.articuloId), cantidad: entero(i.cantidad) };

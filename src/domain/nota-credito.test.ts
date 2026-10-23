@@ -30,6 +30,11 @@ const ARTICULOS = new Map([
   ["b", articulo("b", 10000, 1050)],
 ]);
 
+it("rechaza repetir el mismo artículo para eludir el límite de devolución", () => {
+  const resultado = armarNotaCredito(venta("B"), [{ articuloId: "a", cantidad: 2000 }, { articuloId: "a", cantidad: 2000 }], []);
+  expect(resultado).toEqual({ error: "Un artículo no puede repetirse en la devolución" });
+});
+
 function venta(tipo: TipoComprobante): Venta {
   const { lineas, calculo } = armarLineas(
     tipo,

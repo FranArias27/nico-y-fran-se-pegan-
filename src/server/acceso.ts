@@ -5,6 +5,7 @@ export class ErrorPedido extends Error {
   constructor(
     mensaje: string,
     readonly status: number,
+    readonly pendiente = false,
   ) {
     super(mensaje);
   }
@@ -45,6 +46,7 @@ export async function validarAcceso(
     throw new ErrorPedido("Solo un administrador puede hacer esto", 403);
   }
   if (empresa.data()?.activa !== true) throw new ErrorPedido("La empresa está deshabilitada", 403);
+  if (empresa.data()?.restaurando === true) throw new ErrorPedido("La empresa está en recuperación", 409);
   return { demo: empresa.data()?.demo === true, admin, nombre: String(perfil?.nombre ?? "") };
 }
 

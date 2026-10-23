@@ -3,6 +3,8 @@ import type { Comercio } from "@/domain/types";
 import { ErrorPedido, respuestaDeError, usuarioDelPedido, validarAcceso } from "@/server/acceso";
 import { cargarCertificado, crearPedido, ErrorCertificado, estadoCredencial } from "@/server/arca/credenciales";
 import { adminDb } from "@/server/firebase-admin";
+import { conExclusion } from "@/server/exclusion";
+import { randomUUID } from "node:crypto";
 
 /** Gestión del certificado de ARCA de un comercio. Solo para administradores de la empresa. */
 
@@ -27,25 +29,35 @@ export async function POST(request: Request) {
     const empresaId = typeof cuerpo.empresaId === "string" ? cuerpo.empresaId : "";
     const { demo } = await validarAcceso(uid, empresaId, { soloAdmin: true });
     if (demo) throw new ErrorPedido("Las empresas de demostración no usan certificado de ARCA", 400);
+    const resultado = await conExclusion(
+      adminDb(),
+      empresaId,
+      randomUUID(),
+      uid,
+      { accion: "certificado", datos: cuerpo },
+      async (exclusion) => {
+        if (cuerpo.accion === "generar") {
+          const comercio = (await adminDb().doc(`empresas/${empresaId}/config/comercio`).get()).data() as
+            Comercio | undefined;
+          if (!comercio || !cuitValido(comercio.cuit)) {
+            throw new ErrorPedido("Primero cargá y guardá el CUIT del comercio", 400);
+          }
+          return crearPedido(empresaId, { cuit: comercio.cuit, razonSocial: comercio.razonSocial });
+        }
 
-    if (cuerpo.accion === "generar") {
-      const comercio = (await adminDb().doc(`empresas/${empresaId}/config/comercio`).get()).data() as Comercio | undefined;
-      if (!comercio || !cuitValido(comercio.cuit)) {
-        throw new ErrorPedido("Primero cargá y guardá el CUIT del comercio", 400);
-      }
-      return Response.json(await crearPedido(empresaId, { cuit: comercio.cuit, razonSocial: comercio.razonSocial }));
-    }
+        if (cuerpo.accion === "cargar") {
+          const { certificado, entorno } = cuerpo;
+          if (typeof certificado !== "string" || certificado.length > 20_000) {
+            throw new ErrorPedido("Subí el archivo .crt del certificado", 400);
+          }
+          if (entorno !== "homologacion" && entorno !== "produccion") throw new ErrorPedido("Entorno inválido", 400);
+          return cargarCertificado(empresaId, certificado, entorno, exclusion);
+        }
 
-    if (cuerpo.accion === "cargar") {
-      const { certificado, entorno } = cuerpo;
-      if (typeof certificado !== "string" || certificado.length > 20_000) {
-        throw new ErrorPedido("Subí el archivo .crt del certificado", 400);
-      }
-      if (entorno !== "homologacion" && entorno !== "produccion") throw new ErrorPedido("Entorno inválido", 400);
-      return Response.json(await cargarCertificado(empresaId, certificado, entorno));
-    }
-
-    throw new ErrorPedido("Acción inválida", 400);
+        throw new ErrorPedido("Acción inválida", 400);
+      },
+    );
+    return Response.json(resultado);
   } catch (e) {
     return respuestaDeError(e, errorCertificado);
   }

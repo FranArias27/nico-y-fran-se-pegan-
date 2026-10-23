@@ -247,7 +247,8 @@ export function ArticuloForm({
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Campo id="stock" etiqueta={`Stock (${ETIQUETA_UNIDAD[unidad].corta})`}>
-          <Input id="stock" inputMode="decimal" value={stockTxt} onChange={(e) => setStockTxt(e.target.value)} className="tabular" />
+          <Input id="stock" disabled={!!articulo} inputMode="decimal" value={stockTxt} onChange={(e) => setStockTxt(e.target.value)} className="tabular" />
+          {articulo && <p className="text-xs text-muted-foreground">Ajustá las existencias desde Caja y mercadería → Inventario.</p>}
         </Campo>
         <Campo id="minimo" etiqueta={`Stock mínimo (${ETIQUETA_UNIDAD[unidad].corta})`}>
           <Input id="minimo" inputMode="decimal" value={minimoTxt} onChange={(e) => setMinimoTxt(e.target.value)} className="tabular" />

@@ -7,15 +7,28 @@ import {
   urlQrComprobante,
   type ImportesArca,
 } from "@/integrations/fiscal/arca-datos";
-import type { Autorizacion, FiscalProvider, SolicitudAutorizacion, TipoFiscal } from "@/integrations/fiscal/fiscal-provider";
+import type {
+  Autorizacion,
+  FiscalProvider,
+  SolicitudAutorizacion,
+  TipoFiscal,
+} from "@/integrations/fiscal/fiscal-provider";
 import { ErrorDeNegocio } from "@/services/contexto";
 import { almacenTicket, credencialActiva } from "./credenciales";
 import { ErrorArca, SIN_RESPUESTA } from "./soap";
 import { obtenerTicket } from "./wsaa";
+import { huella } from "../exclusion";
+import type { EntornoArca } from "./config";
 import { consultarComprobante, solicitarCae, ultimoAutorizado, type Cae, type DetalleComprobante } from "./wsfe";
 
 /** Número de comprobante distinto al próximo: otra caja autorizó uno en el medio. */
 const NUMERO_NO_CORRELATIVO = "10016";
+export class RechazoFiscal extends ErrorArca {}
+function rechazoDefinitivo(error: ErrorArca): ErrorArca {
+  return error.codigos.length > 0 && error.codigos.every((c) => /^\d+$/.test(c) && c !== NUMERO_NO_CORRELATIVO)
+    ? new RechazoFiscal(error.message, error.codigos)
+    : error;
+}
 
 /** "aaaammdd" en la hora de Argentina. */
 function fechaArca(fecha: Date): string {
@@ -41,11 +54,26 @@ function validarTipo(s: SolicitudAutorizacion) {
  * solo en el servidor: los datos del comercio y los importes los arma el
  * servidor (ver src/app/api/operaciones), nunca el navegador.
  */
-export function crearArcaServidor(empresaId: string): FiscalProvider {
-  return { autorizar: (s) => autorizarComprobante(empresaId, s) };
+export interface IntentoFiscal {
+  detalle: DetalleComprobante;
+  entorno: EntornoArca;
+  cuit: string;
+  firma: string;
+}
+export interface PersistenciaFiscal {
+  intento?: IntentoFiscal;
+  guardar(intento: IntentoFiscal): Promise<void>;
 }
 
-async function autorizarComprobante(empresaId: string, s: SolicitudAutorizacion): Promise<Autorizacion> {
+export function crearArcaServidor(empresaId: string, persistencia?: PersistenciaFiscal): FiscalProvider {
+  return { autorizar: (s) => autorizarComprobante(empresaId, s, persistencia) };
+}
+
+async function autorizarComprobante(
+  empresaId: string,
+  s: SolicitudAutorizacion,
+  persistencia?: PersistenciaFiscal,
+): Promise<Autorizacion> {
   const { comercio } = s;
   validarTipo(s);
 
@@ -69,7 +97,7 @@ async function autorizarComprobante(empresaId: string, s: SolicitudAutorizacion)
   const { entorno, cuit } = credencial;
   const codigo = codigoArca(s.clase, s.tipo);
   const receptor = tipoDocumento(s.clienteDocumento);
-  const hoy = fechaArca(new Date());
+  const hoy = fechaArca(new Date(s.fecha));
   const ticket = await obtenerTicket(credencial, almacenTicket(empresaId));
 
   const detalle = (numero: number): DetalleComprobante => ({
@@ -95,22 +123,43 @@ async function autorizarComprobante(empresaId: string, s: SolicitudAutorizacion)
    * igual. Se consulta para no perder ese CAE ni emitir otro por la misma venta.
    */
   async function recuperar(numero: number): Promise<Cae | undefined> {
-    const emitido = await consultarComprobante(entorno, ticket, cuit, comercio.puntoVenta, codigo, numero).catch(
-      () => undefined,
-    );
+    const emitido = await consultarComprobante(entorno, ticket, cuit, comercio.puntoVenta, codigo, numero);
     const esEste =
       emitido &&
       Number(emitido.total) === Number(pesos(importes.total)) &&
-      Number(emitido.documentoNumero) === receptor.numero;
-    return esEste ? emitido : undefined;
+      Number(emitido.documentoNumero) === receptor.numero &&
+      Number(emitido.documentoTipo) === receptor.tipo &&
+      emitido.fecha === hoy &&
+      Number(emitido.neto) === Number(pesos(importes.neto)) &&
+      Number(emitido.iva) === Number(pesos(importes.iva)) &&
+      Number(emitido.exento) === Number(pesos(importes.exento));
+    if (emitido && !esEste)
+      throw new ErrorDeNegocio("El número reservado pertenece a otro comprobante. Requiere conciliación fiscal.");
+    return emitido;
   }
 
   // ARCA exige numeración correlativa: se pide el último y se usa el siguiente.
   // Si otra caja ganó ese número en el medio, se reintenta una vez.
-  let numero = (await ultimoAutorizado(entorno, ticket, cuit, comercio.puntoVenta, codigo)) + 1;
+  const firma = huella(s);
+  const previo = persistencia?.intento;
+  if (previo && (previo.firma !== firma || previo.entorno !== entorno || previo.cuit !== cuit)) {
+    throw new ErrorDeNegocio("El pedido fiscal pendiente cambió. Reintentá con los datos originales.");
+  }
+  let numero =
+    previo?.detalle.numero ?? (await ultimoAutorizado(entorno, ticket, cuit, comercio.puntoVenta, codigo)) + 1;
   let cae: Cae;
+  const guardar = async () => {
+    const intento = { detalle: detalle(numero), entorno, cuit, firma };
+    await persistencia?.guardar(intento);
+    if (persistencia) persistencia.intento = intento;
+  };
+  const recuperadoPrevio = previo ? await recuperar(numero) : undefined;
   try {
-    cae = await solicitarCae(entorno, ticket, cuit, detalle(numero));
+    if (recuperadoPrevio) cae = recuperadoPrevio;
+    else {
+      await guardar();
+      cae = await solicitarCae(entorno, ticket, cuit, detalle(numero));
+    }
   } catch (e) {
     if (!(e instanceof ErrorArca)) throw e;
     if (e.codigos.includes(SIN_RESPUESTA)) {
@@ -118,10 +167,25 @@ async function autorizarComprobante(empresaId: string, s: SolicitudAutorizacion)
       if (!recuperado) throw e;
       cae = recuperado;
     } else if (e.codigos.includes(NUMERO_NO_CORRELATIVO)) {
-      numero = (await ultimoAutorizado(entorno, ticket, cuit, comercio.puntoVenta, codigo)) + 1;
-      cae = await solicitarCae(entorno, ticket, cuit, detalle(numero));
+      // Un envío anterior pudo autorizarse después de que venció su conexión.
+      // Antes de elegir otro número, consultar siempre el reservado.
+      const anterior = await recuperar(numero);
+      if (anterior) cae = anterior;
+      else {
+        numero = (await ultimoAutorizado(entorno, ticket, cuit, comercio.puntoVenta, codigo)) + 1;
+        await guardar();
+        try {
+          cae = await solicitarCae(entorno, ticket, cuit, detalle(numero));
+        } catch (segundo) {
+          if (!(segundo instanceof ErrorArca)) throw segundo;
+          if (!segundo.codigos.includes(SIN_RESPUESTA)) throw rechazoDefinitivo(segundo);
+          const recuperado = await recuperar(numero);
+          if (!recuperado) throw segundo;
+          cae = recuperado;
+        }
+      }
     } else {
-      throw e;
+      throw rechazoDefinitivo(e);
     }
   }
 

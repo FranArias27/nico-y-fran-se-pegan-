@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { DatabaseIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/auth-provider";
@@ -201,6 +202,10 @@ export function ConfiguracionView() {
       </Card>
 
       {puede("configurar") && !demo && <CertificadoArca />}
+      <Card><CardHeader><CardTitle>Operación y datos</CardTitle></CardHeader><CardContent className="flex flex-wrap gap-3">
+        {puede("configurar") && <Button asChild variant="outline"><Link href="/gestion">Caja, compras e inventario</Link></Button>}
+        <Button asChild variant="outline"><Link href="/herramientas">Herramientas y recuperación</Link></Button>
+      </CardContent></Card>
 
       {/* Solo en la empresa de demostración: en las reales nunca se borran datos. */}
       {puede("configurar") && demo && (

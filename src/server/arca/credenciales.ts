@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
 import forge from "node-forge";
 import { adminDb } from "../firebase-admin";
+import type { Exclusion } from "../exclusion";
 import { cifrar, descifrar } from "../cifrado";
 import { claveCifrado, type EntornoArca } from "./config";
 import type { AlmacenTicket, Ticket } from "./wsaa";
@@ -61,7 +62,14 @@ export function generarClaveYPedido(datos: { cuit: string; razonSocial: string }
   csr.setSubject([
     { shortName: "C", value: "AR" },
     // ARCA no acepta caracteres raros en el nombre: se dejan letras, números y espacios.
-    { shortName: "O", value: datos.razonSocial.normalize("NFD").replace(/[^\w\s.-]/g, "").slice(0, 60) || "Comercio" },
+    {
+      shortName: "O",
+      value:
+        datos.razonSocial
+          .normalize("NFD")
+          .replace(/[^\w\s.-]/g, "")
+          .slice(0, 60) || "Comercio",
+    },
     { shortName: "CN", value: `facturacion-${datos.cuit}` },
     { name: "serialNumber", value: `CUIT ${datos.cuit}` },
   ]);
@@ -83,7 +91,9 @@ export function validarCertificado(certificadoPem: string, clavePem: string, cui
   const publica = certificado.publicKey as forge.pki.rsa.PublicKey;
   const privada = forge.pki.privateKeyFromPem(clavePem);
   if (publica.n.toString(16) !== privada.n.toString(16)) {
-    throw new ErrorCertificado("El certificado no corresponde al último pedido generado. Subí el que obtuviste con ese pedido.");
+    throw new ErrorCertificado(
+      "El certificado no corresponde al último pedido generado. Subí el que obtuviste con ese pedido.",
+    );
   }
   const serie = certificado.subject.attributes.find((a) => a.type === forge.pki.oids.serialNumber)?.value;
   if (typeof serie !== "string" || serie.replace(/\D/g, "") !== cuit) {
@@ -113,7 +123,10 @@ export async function estadoCredencial(empresaId: string): Promise<EstadoCredenc
 }
 
 /** Genera un pedido nuevo. Si ya había un certificado activo, sigue en uso hasta cargar el nuevo. */
-export async function crearPedido(empresaId: string, datos: { cuit: string; razonSocial: string }): Promise<EstadoCredencial> {
+export async function crearPedido(
+  empresaId: string,
+  datos: { cuit: string; razonSocial: string },
+): Promise<EstadoCredencial> {
   const { clave, pedido } = generarClaveYPedido(datos);
   await referencia(empresaId).set(
     { pendiente: { cuit: datos.cuit, clave: cifrar(clave, claveCifrado()), pedido, creado: new Date().toISOString() } },
@@ -122,17 +135,27 @@ export async function crearPedido(empresaId: string, datos: { cuit: string; razo
   return estadoCredencial(empresaId);
 }
 
-export async function cargarCertificado(empresaId: string, certificado: string, entorno: EntornoArca): Promise<EstadoCredencial> {
+export async function cargarCertificado(
+  empresaId: string,
+  certificado: string,
+  entorno: EntornoArca,
+  exclusion?: Exclusion,
+): Promise<EstadoCredencial> {
   const { pendiente } = await leer(empresaId);
   if (!pendiente) throw new ErrorCertificado("Primero generá el pedido de certificado.");
   const vence = validarCertificado(certificado, descifrar(pendiente.clave, claveCifrado()), pendiente.cuit, new Date());
-  await referencia(empresaId).set({
-    activo: { cuit: pendiente.cuit, clave: pendiente.clave, certificado, entorno, vence },
+  await adminDb().runTransaction(async (tx) => {
+    if (exclusion) await exclusion.verificar(tx);
+    tx.set(referencia(empresaId), {
+      activo: { cuit: pendiente.cuit, clave: pendiente.clave, certificado, entorno, vence },
+    });
+    // Copia pública del estado en el comercio: la app la usa para habilitar las facturas.
+    tx.set(
+      adminDb().doc(`empresas/${empresaId}/config/comercio`),
+      { certificadoArca: { entorno, vence } },
+      { merge: true },
+    );
   });
-  // Copia pública del estado en el comercio: la app la usa para habilitar las facturas.
-  await adminDb()
-    .doc(`empresas/${empresaId}/config/comercio`)
-    .set({ certificadoArca: { entorno, vence } }, { merge: true });
   return estadoCredencial(empresaId);
 }
 

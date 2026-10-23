@@ -113,6 +113,11 @@ export interface ComprobanteAutorizado extends Cae {
   /** Importe total en pesos, como lo informa ARCA ("1234.56"). */
   total: string;
   documentoNumero: string;
+  documentoTipo: string;
+  fecha: string;
+  neto: string;
+  iva: string;
+  exento: string;
 }
 
 /** Consulta un comprobante emitido. Devuelve undefined si ARCA no lo tiene registrado. */
@@ -142,10 +147,15 @@ export async function consultarComprobante(
       vencimiento: String(campo(comprobante, "FchVto")),
       total: String(campo(comprobante, "ImpTotal")),
       documentoNumero: String(campo(comprobante, "DocNro")),
+      documentoTipo: String(campo(comprobante, "DocTipo")),
+      fecha: String(campo(comprobante, "CbteFch")),
+      neto: String(campo(comprobante, "ImpNeto")),
+      iva: String(campo(comprobante, "ImpIVA")),
+      exento: String(campo(comprobante, "ImpOpEx")),
     };
   }
   const { codigos, mensaje } = erroresDe(resultado);
   // 602: no existe el comprobante.
-  if (codigos.includes("602") || (!comprobante && codigos.length === 0)) return undefined;
+  if (codigos.includes("602")) return undefined;
   throw new ErrorArca(mensaje || "No se pudo consultar el comprobante", codigos);
 }

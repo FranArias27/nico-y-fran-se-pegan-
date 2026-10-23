@@ -66,6 +66,9 @@ export function armarNotaCredito(
 ): { error: string } | { lineas: LineaVenta[]; totales: TotalesComprobante } {
   const pendientes = pendientesDeDevolver(venta, notasAnteriores);
   const pedidas = devoluciones.filter((d) => d.cantidad > 0);
+  if (new Set(pedidas.map((d) => d.articuloId)).size !== pedidas.length) {
+    return { error: "Un artículo no puede repetirse en la devolución" };
+  }
   if (pedidas.length === 0) return { error: "Elegí al menos un artículo para devolver" };
 
   const lineas: LineaVenta[] = [];

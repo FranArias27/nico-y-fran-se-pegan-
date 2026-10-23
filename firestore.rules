@@ -27,7 +27,8 @@ service cloud.firestore {
       allow list: if general();
       allow create: if general() && validCompany();
       // A company is created as demo or real and can never switch: real data must not mix with demo resets.
-      allow update: if general() && validCompany() && request.resource.data.get('demo', false) == resource.data.get('demo', false);
+      allow update: if general() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'activa'])
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0 && request.resource.data.nombre.size() <= 100 && request.resource.data.activa is bool;
     }
     // Only the display name and access status are public; directory listing is forbidden.
     match /accesos/{id} {
@@ -44,8 +45,12 @@ service cloud.firestore {
     // Data is only ever deleted in demo companies (demo reset): real records are kept.
     match /empresas/{empresaId} {
       function active() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.activa == true; }
-      function staff() { return general() || (member(empresaId) && active()); }
-      function admin() { return general() || (member(empresaId) && active() && profile().rol == 'admin'); }
+      function ready() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.get('restaurando', false) == false; }
+      function staff() { return ready() && (general() || (member(empresaId) && active())); }
+      function admin() { return ready() && (general() || (member(empresaId) && active() && profile().rol == 'admin')); }
+      function disponible() { return !exists(/databases/$(database)/documents/empresas/$(empresaId)/control/escritura)
+        || get(/databases/$(database)/documents/empresas/$(empresaId)/control/escritura).data.get('id', null) == null; }
+      match /control/cambios { allow read: if staff(); }
 
       function demo() { return get(/databases/$(database)/documents/empresas/$(empresaId)).data.get('demo', false) == true; }
       function wipe() { return admin() && demo(); }
@@ -68,28 +73,30 @@ service cloud.firestore {
       }
       match /config/{id} {
         allow read: if staff();
-        allow create, update: if admin() && (demo() || certificateUntouched());
+        allow create, update: if admin() && disponible() && (demo() || certificateUntouched());
         allow delete: if wipe();
       }
       match /categorias/{id} {
         allow read: if staff();
-        allow create, update: if admin();
+        allow create, update: if admin() && disponible();
         allow delete: if wipe();
       }
       match /articulos/{id} {
         allow read: if staff();
         // Stock moves with sales, which the server registers.
-        allow create, update: if admin() && noCosts();
+        allow create: if admin() && disponible() && noCosts();
+        allow update: if admin() && disponible() && noCosts() && request.resource.data.stock == resource.data.stock;
         allow delete: if wipe();
       }
       match /costos/{id} {
-        allow read, create, update: if admin();
+        allow read: if admin();
+        allow create, update: if admin() && disponible();
         allow delete: if wipe();
       }
       match /clientes/{id} {
         allow read: if staff();
-        allow create: if admin() || (staff() && noCredit());
-        allow update: if admin() || (staff() && creditUntouched());
+        allow create: if disponible() && (admin() || (staff() && noCredit()));
+        allow update: if disponible() && (admin() || (staff() && creditUntouched()));
         allow delete: if wipe();
       }
       match /enEspera/{id} {

@@ -17,5 +17,5 @@ export interface PaymentProvider {
   crearCobroQR(importe: Centavos, referencia: string): Promise<CobroQR>;
   consultarCobroQR(id: string): Promise<EstadoCobroQR>;
   /** Link de pago para enviar a un cliente por su saldo. */
-  crearLinkPago(clienteId: string, importe: Centavos): string;
+  crearLinkPago(clienteId: string, importe: Centavos): string | undefined;
 }

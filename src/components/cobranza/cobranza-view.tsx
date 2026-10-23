@@ -59,10 +59,11 @@ function Kpi({ etiqueta, valor, detalle, tono }: { etiqueta: string; valor: Reac
 }
 
 export function CobranzaView() {
-  const { datos: cartera } = useConsulta((s) => s.cuentaCorriente.cartera());
+  const { datos: cartera, error } = useConsulta((s) => s.cuentaCorriente.cartera());
   const hoy = aFechaISO(new Date());
   const { llamadoHoy, marcar } = useLlamados(hoy);
 
+  if (error) return <p role="alert" className="p-6">{error.message}</p>;
   if (!cartera) {
     return (
       <div className="grid gap-4 p-4 md:p-6">

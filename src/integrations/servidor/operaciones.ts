@@ -12,10 +12,15 @@ const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * y guarda todo. Cada operación lleva un id propio: si se corta la conexión,
  * se reintenta con el mismo id y el servidor no la duplica.
  */
-export function crearOperacionesRemotas(opciones: { empresaId: string; token: () => Promise<string> }) {
+export function crearOperacionesRemotas(opciones: { empresaId: string; usuarioId?: string; token: () => Promise<string> }) {
   async function enviar<T>(accion: string, datos: object): Promise<T> {
-    const id = crypto.randomUUID();
-    const cuerpo = JSON.stringify({ empresaId: opciones.empresaId, id, accion, datos });
+    const clave = `el-tornillo:pendiente:${opciones.empresaId}:${opciones.usuarioId ?? ""}:${accion}`;
+    const firma = JSON.stringify(datos);
+    const guardado = sessionStorage.getItem(clave);
+    const previo = guardado ? JSON.parse(guardado) as { firma: string; cuerpo: string } : undefined;
+    if (previo && previo.firma !== firma) throw new ErrorDeNegocio("Hay un pedido pendiente con otros datos. Reintentá el original desde Herramientas antes de crear otro.");
+    const cuerpo = previo?.cuerpo ?? JSON.stringify({ empresaId: opciones.empresaId, id: crypto.randomUUID(), accion, datos });
+    sessionStorage.setItem(clave, JSON.stringify({ firma, cuerpo }));
     for (let intento = 1; ; intento++) {
       let respuesta: Response;
       try {
@@ -33,13 +38,17 @@ export function crearOperacionesRemotas(opciones: { empresaId: string; token: ()
           "Sin conexión con el servidor. Antes de repetir la operación, revisá en Ventas o en la cuenta del cliente si quedó registrada.",
         );
       }
-      const respuestaJson = (await respuesta.json().catch(() => ({}))) as { resultado?: T; error?: string };
+      const respuestaJson = (await respuesta.json().catch(() => ({}))) as { resultado?: T; error?: string; pendiente?: boolean };
       // 409: el intento anterior todavía se está procesando en el servidor.
       if (respuesta.status === 409 && intento < REINTENTOS) {
         await esperar(5000);
         continue;
       }
-      if (!respuesta.ok) throw new ErrorDeNegocio(respuestaJson.error ?? `Error del servidor (${respuesta.status})`);
+      if (!respuesta.ok) {
+        if (respuestaJson.pendiente !== true) sessionStorage.removeItem(clave);
+        throw new ErrorDeNegocio(respuestaJson.error ?? `Error del servidor (${respuesta.status})`);
+      }
+      sessionStorage.removeItem(clave);
       return respuestaJson.resultado as T;
     }
   }

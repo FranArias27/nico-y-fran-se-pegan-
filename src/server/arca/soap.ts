@@ -61,12 +61,14 @@ export async function llamarSoap(url: string, accion: string, sobre: string): Pr
   } catch {
     throw new ErrorArca("No se pudo conectar con ARCA. Probá de nuevo en unos minutos.", [SIN_RESPUESTA]);
   }
-  const cuerpo = campo(parsearXml(await respuesta.text()), "Envelope", "Body");
+  let cuerpo: unknown;
+  try { cuerpo = campo(parsearXml(await respuesta.text()), "Envelope", "Body"); }
+  catch { throw new ErrorArca("La respuesta de ARCA quedó incompleta. Reintentá el mismo pedido.", [SIN_RESPUESTA]); }
   const falla = campo(cuerpo, "Fault");
   if (falla) {
     const codigo = String(campo(falla, "faultcode") ?? "");
     throw new ErrorArca(String(campo(falla, "faultstring") ?? "Error de ARCA"), [codigo]);
   }
-  if (!respuesta.ok || !cuerpo) throw new ErrorArca(`ARCA respondió con un error (${respuesta.status})`);
+  if (!respuesta.ok || !cuerpo) throw new ErrorArca(`ARCA respondió con un error (${respuesta.status})`, [SIN_RESPUESTA]);
   return cuerpo;
 }

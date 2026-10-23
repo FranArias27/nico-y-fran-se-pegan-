@@ -1,12 +1,16 @@
 # El Tornillo · Mostrador y cobranza
 
+## Operación, recuperación y módulos nuevos
+
+Ver [OPERACION.md](OPERACION.md) para activar las reglas, abrir caja, recibir compras, gestionar proveedores y pagos, registrar inventario, importar/exportar Excel, crear/restaurar respaldos y ejecutar pruebas con el emulador. La validación real de ARCA tiene un comando de homologación documentado en [ARCA.md](ARCA.md).
+
 Prototipo navegable de un sistema de **punto de venta, stock, facturación y cuenta corriente** para comercios argentinos (ferreterías, corralones, almacenes, distribuidores). El diferencial es unir el mostrador con la cobranza de lo que se vende "a cuenta".
 
 Usa Firebase (Authentication y Firestore) para el login y los datos de cada empresa; ver [FIREBASE.md](FIREBASE.md). Las empresas reales facturan con ARCA (ver [ARCA.md](ARCA.md)); solo la empresa de demostración usa datos de ejemplo y facturación simulada. **Mercado Pago todavía no está integrado:** el cobro con QR existe solo en la demo.
 
 ## Requisitos
 
-- Node.js 20.9 o superior (se desarrolló con Node 24).
+- Node.js 24 LTS (recomendado para la app, los tests y las herramientas de Firebase).
 - npm.
 
 ## Instalar y correr
@@ -134,7 +138,7 @@ Las implementaciones del navegador se eligen en `src/components/providers/servic
 
 ## Fuera de alcance (pensado para después)
 
-Integración real con Mercado Pago, importación desde Excel, caja con apertura y arqueo, inventario, roles personalizados, facturas de servicios y en moneda extranjera, contingencia sin conexión con ARCA (CAEA) y listas de precios múltiples.
+Integración real con Mercado Pago, cajas independientes por sucursal/empleado, contabilidad completa de compras (tributos especiales y devoluciones a proveedores), roles personalizados, facturas de servicios y en moneda extranjera, contingencia sin conexión con ARCA (CAEA) y listas de precios múltiples.
 
 ## Stack
 

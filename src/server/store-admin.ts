@@ -1,4 +1,5 @@
-import { FieldValue, type Firestore, type Query, type WriteBatch } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Query, type Transaction } from "firebase-admin/firestore";
+import type { Exclusion } from "./exclusion";
 import {
   separarArticulo,
   separarVenta,
@@ -11,7 +12,7 @@ import {
 } from "@/data/costos";
 import type { Store } from "@/data/store";
 import { desdeFechaISO, sumarDias } from "@/domain/fechas";
-import type { Comercio } from "@/domain/types";
+import type { Comercio, Venta } from "@/domain/types";
 
 const porFecha = <T extends { fecha: string }>(lista: T[]) => lista.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
@@ -23,10 +24,11 @@ const porFecha = <T extends { fecha: string }>(lista: T[]) => lista.sort((a, b) 
  * línea. Guarda los datos con el mismo formato que el store del navegador
  * (src/data/firestore).
  *
- * `transaccion()` agrupa las escrituras en un lote atómico, igual que en el
- * navegador. Se crea uno por pedido, así que no hace falta encolarlas.
+ * `transaccion()` confirma escrituras con una transacción de Firestore que
+ * verifica el token de exclusión. El ejecutor mantiene esa exclusión desde
+ * antes de leer saldos y devoluciones hasta después de guardar el resultado.
  */
-export function crearStoreAdmin(db: Firestore, empresaId: string): Store {
+export function crearStoreAdmin(db: Firestore, empresaId: string, exclusion?: Exclusion): Store {
   const col = (nombre: string) => db.collection(`empresas/${empresaId}/${nombre}`);
   const ref = (nombre: string, id: string) => col(nombre).doc(id);
 
@@ -40,12 +42,18 @@ export function crearStoreAdmin(db: Firestore, empresaId: string): Store {
     return ventas.map((v, i) => unirVenta(v, snaps[i].data() as CostosVenta | undefined));
   }
 
-  let lote: WriteBatch | null = null;
-  async function escribir(aplicar: (b: WriteBatch) => void) {
-    if (lote) return aplicar(lote);
-    const b = db.batch();
-    aplicar(b);
-    await b.commit();
+  let pendientes: ((tx: Transaction) => void)[] | null = null;
+  let comprobante: Venta | undefined;
+  async function confirmar(escrituras: ((tx: Transaction) => void)[]) {
+    await db.runTransaction(async (tx) => {
+      if (exclusion) await exclusion.verificar(tx);
+      for (const escribir of escrituras) escribir(tx);
+      tx.set(ref("control", "cambios"), { version: FieldValue.increment(1) }, { merge: true });
+    });
+  }
+  async function escribir(aplicar: (b: Transaction) => void) {
+    if (pendientes) { pendientes.push(aplicar); return; }
+    await confirmar([aplicar]);
   }
 
   const noDisponible = (): never => {
@@ -88,7 +96,14 @@ export function crearStoreAdmin(db: Firestore, empresaId: string): Store {
           b.set(ref("costos", a.id), costo);
         }),
       guardarVarios: noDisponible,
-      ajustarStock: (id, delta) => escribir((b) => b.update(ref("articulos", id), { stock: FieldValue.increment(delta) })),
+      ajustarStock: (id, delta) => escribir((b) => {
+        b.update(ref("articulos", id), { stock: FieldValue.increment(delta) });
+        if (comprobante) b.set(ref("inventarioMovimientos", `${comprobante.id}-${id}`), {
+          id: `${comprobante.id}-${id}`, articuloId: id, delta, fecha: comprobante.fecha,
+          motivo: comprobante.clase === "nota_credito" ? "Devolución de venta" : "Venta",
+          comprobanteId: comprobante.id, usuarioId: comprobante.vendedorId,
+        });
+      }),
     },
 
     clientes: {
@@ -118,12 +133,14 @@ export function crearStoreAdmin(db: Firestore, empresaId: string): Store {
         ]);
         return publica && unirVenta(publica, costos);
       },
-      agregar: (v) =>
-        escribir((b) => {
+      agregar: (v) => {
+        comprobante = v;
+        return escribir((b) => {
           const { publica, costos } = separarVenta(v);
           b.set(ref("ventas", v.id), publica);
           b.set(ref("ventasCostos", v.id), costos);
-        }),
+        });
+      },
     },
 
     movimientos: {
@@ -156,13 +173,13 @@ export function crearStoreAdmin(db: Firestore, empresaId: string): Store {
     },
 
     async transaccion<T>(fn: () => Promise<T>): Promise<T> {
-      lote = db.batch();
+      pendientes = [];
       try {
         const valor = await fn();
-        await lote.commit();
+        await confirmar(pendientes);
         return valor;
       } finally {
-        lote = null;
+        pendientes = null;
       }
     },
 

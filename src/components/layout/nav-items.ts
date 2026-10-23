@@ -22,6 +22,8 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  { href: "/gestion", etiqueta: "Caja y mercadería", corta: "Caja", icono: PackageIcon, permiso: "configurar", enBarraMovil: false },
+  { href: "/herramientas", etiqueta: "Herramientas", corta: "Herram.", icono: SettingsIcon, enBarraMovil: false },
   { href: "/venta", etiqueta: "Venta", corta: "Venta", icono: ShoppingCartIcon },
   { href: "/ventas", etiqueta: "Comprobantes", corta: "Comprob.", icono: ReceiptTextIcon, enBarraMovil: false },
   { href: "/articulos", etiqueta: "Artículos", corta: "Artículos", icono: PackageIcon },

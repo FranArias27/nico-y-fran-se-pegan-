@@ -1,5 +1,23 @@
 # Facturación electrónica con ARCA
 
+## Prueba reproducible de homologación
+
+Las pruebas locales de fallos y reintentos usan dobles de WSAA/WSFE y el emulador de Firestore. No acreditan por sí mismas homologación ni producción.
+
+Preparar una o varias empresas reales **exclusivas de homologación**, con certificado de prueba, un administrador, un cliente y un artículo. Crear un archivo privado `casos-homologacion.json` con los casos que correspondan:
+
+```json
+[
+  { "empresaId": "prueba-ri", "usuarioId": "UID_ADMIN", "clienteId": "CLIENTE_RI", "articuloId": "ARTICULO", "tipo": "A" },
+  { "empresaId": "prueba-ri", "usuarioId": "UID_ADMIN", "clienteId": "CLIENTE_CF", "articuloId": "ARTICULO", "tipo": "B" },
+  { "empresaId": "prueba-mono", "usuarioId": "UID_ADMIN", "clienteId": "CLIENTE_CF", "articuloId": "ARTICULO", "tipo": "C" }
+]
+```
+
+Ejecutar `npm run validar:arca -- casos-homologacion.json` con las variables de servidor cargadas. El programa rechaza certificados de producción, emite una factura de dos unidades, repite el mismo pedido para comprobar idempotencia y envía dos notas parciales concurrentes cuya suma revierte la factura. Usa transferencia para no alterar caja; los movimientos de stock quedan compensados por las devoluciones. Si se interrumpe, revisar y reanudar el pedido pendiente antes de repetir toda la prueba.
+
+Agregar casos con artículos exentos y cada alícuota usada por el comercio. Los resultados reales requieren acceso al servidor de ARCA y un certificado válido. Registrar fecha, empresa, comprobantes y resultado de cada ejecución antes de habilitar producción. Las pruebas en producción deben realizarse de forma controlada por el responsable del comercio; este script no emite comprobantes de producción.
+
 La app emite Factura A, B y C y sus notas de crédito con el web service de factura electrónica de ARCA (WSFEv1). Lo hace desde el servidor, al registrar la venta (`src/app/api/operaciones`), nunca desde el navegador.
 
 ## Cómo funciona

@@ -8,8 +8,10 @@ import { AvisoCertificado } from "@/components/configuracion/aviso-certificado";
 import { crearFirestoreStore } from "@/data/firestore/firestore-store";
 import type { FiscalProvider } from "@/integrations/fiscal/fiscal-provider";
 import { crearMercadoPagoSimulado } from "@/integrations/payments/simulated-mercadopago";
+import { pagosNoDisponibles } from "@/integrations/payments/no-disponible";
 import { crearOperacionesRemotas } from "@/integrations/servidor/operaciones";
 import { auth, firestore } from "@/lib/firebase/client";
+import type { ResumenCartera } from "@/services/cuenta-corriente";
 import { crearServicios, type Servicios } from "@/services";
 
 async function token(): Promise<string> {
@@ -30,22 +32,30 @@ const fiscalEnServidor: FiscalProvider = {
  * las empresas reales no se ofrece el cobro con QR).
  */
 const instancias = new Map<string, Servicios>();
-function obtenerServicios(empresaId: string, verCostos: boolean): Servicios {
-  const clave = `${empresaId}:${verCostos}`;
+function obtenerServicios(empresaId: string, verCostos: boolean, demo: boolean): Servicios {
+  const clave = `${empresaId}:${verCostos}:${demo}`;
   let instancia = instancias.get(clave);
   if (instancia) return instancia;
   const base = crearServicios({
     store: crearFirestoreStore(firestore, empresaId, { verCostos }),
     fiscal: fiscalEnServidor,
-    pagos: crearMercadoPagoSimulado(),
+    pagos: demo ? crearMercadoPagoSimulado() : pagosNoDisponibles,
     ahora: () => new Date(),
     nuevoId: () => crypto.randomUUID(),
   });
-  const remotas = crearOperacionesRemotas({ empresaId, token });
+  const remotas = crearOperacionesRemotas({ empresaId, usuarioId: auth.currentUser?.uid, token });
   instancia = {
     ...base,
     ventas: { ...base.ventas, registrar: remotas.registrarVenta, emitirNotaCredito: remotas.emitirNotaCredito },
-    cuentaCorriente: { ...base.cuentaCorriente, registrarPago: remotas.registrarPago },
+    cuentaCorriente: { ...base.cuentaCorriente, registrarPago: remotas.registrarPago,
+      cartera: async (): Promise<ResumenCartera> => {
+        const respuesta = await fetch(`/api/cartera?empresaId=${encodeURIComponent(empresaId)}`, {
+          headers: { Authorization: `Bearer ${await token()}` }, cache: "no-store",
+        });
+        if (!respuesta.ok) throw new Error("No se pudo cargar la cartera");
+        return respuesta.json();
+      },
+    },
     demo: { ...base.demo, reiniciar: remotas.reiniciarDemo },
   };
   instancias.set(clave, instancia);
@@ -78,7 +88,7 @@ export function ServiciosProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!empresaId) return;
     let vigente = true;
-    const s = obtenerServicios(empresaId, esAdmin);
+    const s = obtenerServicios(empresaId, esAdmin, demo);
     (async () => {
       if (await s.demo.estaVacia()) {
         if (!esAdmin) throw new Error("La empresa todavía no está configurada: un administrador tiene que ingresar primero");

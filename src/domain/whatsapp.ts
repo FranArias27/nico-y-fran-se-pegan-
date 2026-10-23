@@ -29,7 +29,7 @@ export interface DatosRecordatorio {
   saldo: Centavos;
   deudas: readonly DeudaPendiente[];
   hoy: FechaISO;
-  linkPago: string;
+  linkPago?: string;
 }
 
 /** Comprobantes vencidos que se detallan uno por uno; el resto va resumido. */
@@ -57,7 +57,8 @@ export function armarMensajeRecordatorio(datos: DatosRecordatorio): string {
       lineas.push(`• y ${resto.length} comprobantes vencidos más por ${formatMoney(importe)}`);
     }
   }
-  lineas.push("", `Podés pagar desde este link: ${datos.linkPago}`, "", "¡Muchas gracias!");
+  if (datos.linkPago) lineas.push("", `Podés pagar desde este link: ${datos.linkPago}`);
+  lineas.push("", "¡Muchas gracias!");
   return lineas.join("\n");
 }
 

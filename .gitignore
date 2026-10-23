@@ -2,6 +2,11 @@
 
 # dependencies
 /node_modules
+/.npm-cache/
+/backups/
+/.firebase-cli/
+/.emulators/
+/.firebase/
 /.pnp
 .pnp.*
 .yarn/*

@@ -5,7 +5,6 @@ import {
   getDoc,
   getDocs,
   increment,
-  limit,
   onSnapshot,
   orderBy,
   query,
@@ -19,7 +18,7 @@ import {
   type WriteBatch,
 } from "firebase/firestore";
 import { desdeFechaISO, sumarDias, type Rango } from "@/domain/fechas";
-import type { Comercio, Movimiento } from "@/domain/types";
+import type { Comercio, Movimiento, Recibo } from "@/domain/types";
 import {
   unirArticulo,
   unirTodos,
@@ -136,11 +135,11 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
   }
 
   /**
-   * Escucha los cambios hechos desde otros dispositivos. Para no descargar
-   * todo el historial, de las ventas solo se escucha la última.
+   * Escucha catálogo y datos maestros. El historial no mantiene listeners:
+   * un documento de versión avisa cuando el servidor termina una operación.
    */
   function escucharCambios() {
-    const cacheadas: Cacheada[] = ["config", "categorias", "articulos", "clientes", "movimientos", "enEspera"];
+    const cacheadas: Cacheada[] = ["config", "categorias", "articulos", "clientes", "enEspera"];
     if (opciones.verCostos) cacheadas.push("costos");
     const bajas = cacheadas.map((nombre) => {
       let primera = true;
@@ -153,13 +152,9 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
         else if (snap.docChanges().length > 0) notificar();
       });
     });
-    let primera = true;
-    bajas.push(
-      onSnapshot(query(col("ventas"), orderBy("fecha", "desc"), limit(1)), () => {
-        if (primera) primera = false;
-        else notificar();
-      }),
-    );
+    bajas.push(onSnapshot(doc(db, "empresas", empresaId, "control", "cambios"), () => {
+      notificar();
+    }));
     return () => {
       bajas.forEach((baja) => baja());
       cache.clear();
@@ -284,7 +279,7 @@ export function crearFirestoreStore(db: Firestore, empresaId: string, opciones: 
     },
 
     recibos: {
-      listarPorCliente: (clienteId) => leer(query(col("recibos"), where("clienteId", "==", clienteId))),
+      listarPorCliente: (clienteId) => leer(query(col<Recibo>("recibos"), where("clienteId", "==", clienteId))),
       obtener: (id) => leerUno("recibos", id),
       agregar: (r) => escribir((b) => b.set(ref("recibos", r.id), r)),
     },
