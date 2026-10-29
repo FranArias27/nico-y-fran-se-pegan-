@@ -1,0 +1,1 @@
+import{b5 as s,j as a}from"./index-D_G-Xt8z.js";import{L as e}from"./login-yVrQ83kI.js";import"./input-BQkHoA31.js";function p(){const{empresa:r}=s();return a.jsx(e,{empresaId:r})}export{p as default};

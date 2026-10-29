@@ -1,0 +1,1 @@
+import{j as s,M as e,a as r}from"./index-D_G-Xt8z.js";function o({value:t,className:a}){return s.jsx("span",{className:r("tabular whitespace-nowrap",t<0&&"text-destructive",a),children:e(t)})}export{o as M};
