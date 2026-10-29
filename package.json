@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "local": "node local/server.mjs",
+    "local": "node --watch local/server.mjs",
     "test:local": "node --test local/store.test.mjs",
     "dev": "vite",
     "build": "vite build",

@@ -4,7 +4,7 @@ Requiere Node.js 24. Ejecutar `npm run local` desde la raíz y abrir http://127.
 
 Los datos se guardan en `local/data/comercio.sqlite`, fuera del control de versiones. No borrar esa carpeta. Cerrar el servidor antes de copiar la carpeta como respaldo manual.
 
-Incluye alta de productos, venta en efectivo, descuento atómico de stock e historial de ventas persistente. Un reintento con el mismo identificador no duplica la venta. El navegador conserva la solicitud pendiente para recuperarla después de recargar.
+Incluye alta, edición de nombre/precio/stock, baja lógica, reactivación, búsqueda y filtros de productos; venta en efectivo, descuento atómico de stock e historial de ventas persistente. Las bajas conservan los datos y bloquean nuevas ventas del producto. Editar un producto no cambia los detalles de ventas anteriores. La base existente incorpora automáticamente el estado activo de los productos al arrancar. Un reintento con el mismo identificador no duplica la venta. El navegador conserva la solicitud pendiente para recuperarla después de recargar.
 
 Ejecutar `npm run test:local` para verificar persistencia, stock y reintentos.
 

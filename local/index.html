@@ -5,11 +5,11 @@
 </style>
 <header><div><h1>Mostrador</h1><small style="color:#b9c6da">Primera versión local · una computadora</small></div><span>● Datos guardados en este equipo</span></header>
 <div id="message" role="status" aria-live="polite"></div><main>
-<section><h2>Productos</h2><form id="product"><label>Nombre<input name="name" required maxlength="120" placeholder="Ej. Alfajor triple"></label><div class="row"><label>Precio ($)<input name="price" type="text" inputmode="decimal" placeholder="Ej. 15.000,50" required></label><label>Stock inicial<input name="stock" type="text" inputmode="numeric" placeholder="Ej. 1.000" required></label></div><button>Agregar producto</button></form><p><small>Los precios se guardan en centavos. Ventas en efectivo.</small></p><table><thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th></th></tr></thead><tbody id="products"></tbody></table></section>
+<section><h2>Productos</h2><p id="editing" hidden></p><form id="product"><label>Nombre<input name="name" required maxlength="120" placeholder="Ej. Alfajor triple"></label><div class="row"><label>Precio ($)<input name="price" type="text" inputmode="decimal" placeholder="Ej. 15.000,50" required></label><label>Stock actual<input name="stock" type="text" inputmode="numeric" placeholder="Ej. 1.000" required></label></div><button id="save-product">Agregar producto</button> <button id="cancel-edit" type="button" hidden>Cancelar edición</button></form><p><small>Los precios se guardan en centavos. Ventas en efectivo.</small></p><label>Buscar producto<input id="search" type="search" placeholder="Buscar por nombre"></label><label>Mostrar <select id="filter"><option value="active">Activos</option><option value="inactive">Dados de baja</option><option value="all">Todos</option></select></label><p id="product-count"></p><div style="overflow-x:auto"><table><thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th></th></tr></thead><tbody id="products"></tbody></table></div></section>
 <section><h2>Nueva venta</h2><p><small>Agregá productos desde el listado.</small></p><div id="cart"></div><div id="total">$ 0</div><button id="sell">Confirmar venta en efectivo</button><p><small>Esta versión registra ventas internas; no emite facturas fiscales.</small></p></section>
 <section class="history"><h2>Últimas ventas</h2><table><thead><tr><th>Fecha</th><th>Referencia</th><th>Total</th></tr></thead><tbody id="sales"></tbody></table></section></main>
 <script type="module">
-let state={products:[],sales:[]}, cart=[], pending=null, busy=false;
+let state={products:[],sales:[]}, cart=[], pending=null, busy=false, editingId=null;
 const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(n/100);
 const say=text=>$('message').textContent=text;
 const priceInput=document.querySelector('[name="price"]'),stockInput=document.querySelector('[name="stock"]');
@@ -35,16 +35,52 @@ function priceInCents(value){
  if(!Number.isSafeInteger(cents)||cents<=0||cents>100000000000)throw Error('El precio debe ser mayor a cero y no superar 1.000.000.000.');
  return cents;
 }
-async function api(path,data){const r=await fetch('/api/'+path,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{});const result=await r.json();if(!r.ok)throw Error(result.error||'No se pudo completar la operación');return result;}
+async function api(path,data){const r=await fetch('/api/'+path,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{});if(r.status===404&&path.startsWith('products/'))throw Error('El servidor está usando una versión anterior. En la terminal presioná Ctrl+C, ejecutá npm run local y recargá la página.');const result=await r.json();if(!r.ok)throw Error(result.error||'No se pudo completar la operación');return result;}
 function cell(row,text){const td=document.createElement('td');td.textContent=text;row.append(td);return td;}
+function resetProductForm(){editingId=null;$('product').reset();$('editing').hidden=true;$('cancel-edit').hidden=true;$('save-product').textContent='Agregar producto';}
+$('cancel-edit').onclick=resetProductForm;
+$('search').addEventListener('input',render);$('filter').addEventListener('change',render);
+function editProduct(p){
+ editingId=p.id;document.querySelector('[name="name"]').value=p.name;
+ priceInput.value=(p.price/100).toFixed(2).replace('.',',');formatInput(priceInput,true);
+ stockInput.value=String(p.stock);formatInput(stockInput,false);
+ $('editing').textContent='Editando: '+p.name;$('editing').hidden=false;$('cancel-edit').hidden=false;$('save-product').textContent='Guardar cambios';
+ document.querySelector('[name="name"]').focus();
+}
+async function changeActive(p){
+ if(busy||pending)return;
+ if(p.active&&!confirm('¿Dar de baja '+p.name+'? Se conserva su historial de ventas.'))return;
+ busy=true;render();
+ try{await api('products/active',{id:p.id,active:!p.active});if(p.active)cart=cart.filter(l=>l.productId!==p.id);if(editingId===p.id)resetProductForm();say(p.active?'Producto dado de baja.':'Producto reactivado.');await refresh();}catch(e){say(e.message);}finally{busy=false;render();}
+}
 function render(){
- $('products').replaceChildren();for(const p of state.products){const row=document.createElement('tr');cell(row,p.name);cell(row,money(p.price));cell(row,p.stock);const b=document.createElement('button');b.textContent='+';b.ariaLabel='Agregar '+p.name;b.disabled=busy||!!pending||p.stock===0;b.onclick=()=>{const line=cart.find(l=>l.productId===p.id);if((line?.quantity||0)>=p.stock)return say('No queda más stock disponible.');line?line.quantity++:cart.push({productId:p.id,quantity:1});render();};cell(row,'').append(b);$('products').append(row);}
+ $('save-product').disabled=busy||!!pending;$('cancel-edit').disabled=busy||!!pending;
+ const query=$('search').value.trim().toLocaleLowerCase('es-AR'),filter=$('filter').value;
+ const products=state.products.filter(p=>(filter==='all'||(filter==='active'?p.active:!p.active))&&p.name.toLocaleLowerCase('es-AR').includes(query));
+ $('product-count').textContent=products.length+' producto(s)';
+ $('products').replaceChildren();for(const p of products){
+  const row=document.createElement('tr');cell(row,p.name+(p.active?'':' · Dado de baja'));cell(row,money(p.price));cell(row,new Intl.NumberFormat('es-AR').format(p.stock));
+  const actions=cell(row,'');actions.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
+  const add=document.createElement('button');add.textContent='+';add.ariaLabel='Agregar '+p.name;add.disabled=busy||!!pending||!p.active||p.stock===0;
+  add.onclick=()=>{const line=cart.find(l=>l.productId===p.id);if((line?.quantity||0)>=p.stock)return say('No queda más stock disponible.');line?line.quantity++:cart.push({productId:p.id,quantity:1});render();};
+  const edit=document.createElement('button');edit.textContent='Editar';edit.disabled=busy||!!pending;edit.onclick=()=>editProduct(p);
+  const deactivate=document.createElement('button');deactivate.textContent=p.active?'Dar de baja':'Reactivar';deactivate.disabled=busy||!!pending;deactivate.onclick=()=>changeActive(p);
+  actions.append(add,edit,deactivate);$('products').append(row);
+ }
+ if(!products.length){const row=document.createElement('tr');const td=cell(row,'No hay productos para este filtro.');td.colSpan=4;$('products').append(row);}
  $('cart').replaceChildren();let total=0;for(const line of cart){const p=state.products.find(p=>p.id===line.productId);if(!p)continue;total+=p.price*line.quantity;const row=document.createElement('p');row.textContent=`${line.quantity} × ${p.name} · ${money(p.price*line.quantity)} `;const b=document.createElement('button');b.textContent='Quitar';b.disabled=busy||!!pending;b.onclick=()=>{cart=cart.filter(l=>l!==line);render();};row.append(b);$('cart').append(row);}if(!cart.length)$('cart').textContent='Todavía no agregaste productos.';
  $('total').textContent=money(total);$('sell').disabled=busy||!cart.length;$('sell').textContent=pending?'Reintentar confirmación':'Confirmar venta en efectivo';
  $('sales').replaceChildren();for(const s of state.sales){const row=document.createElement('tr');cell(row,new Date(s.created).toLocaleString('es-AR'));cell(row,s.id.slice(0,8));cell(row,money(s.total));$('sales').append(row);}
 }
 async function refresh(){state=await api('state');render();}
-$('product').onsubmit=async e=>{e.preventDefault();const f=e.target,b=f.querySelector('button');b.disabled=true;try{const d=new FormData(f);if(!/^\d[\d.]*$/.test(d.get('stock'))||Number(d.get('stock').replaceAll('.',''))>1000000000)throw Error('Ingresá un stock entero entre 0 y 1.000.000.000.');await api('products',{name:d.get('name'),price:priceInCents(d.get('price')),stock:Number(d.get('stock').replaceAll('.',''))});f.reset();say('Producto guardado.');await refresh();}catch(e){say(e.message);}finally{b.disabled=false;}};
+$('product').onsubmit=async e=>{
+ e.preventDefault();if(busy||pending)return;busy=true;render();
+ try{const d=new FormData(e.target);if(!/^\d[\d.]*$/.test(d.get('stock'))||Number(d.get('stock').replaceAll('.',''))>1000000000)throw Error('Ingresá un stock entero entre 0 y 1.000.000.000.');
+ const data={name:d.get('name'),price:priceInCents(d.get('price')),stock:Number(d.get('stock').replaceAll('.',''))};
+ if(editingId)data.id=editingId;
+ await api(editingId?'products/update':'products',data);resetProductForm();say('Producto guardado.');await refresh();
+ }catch(e){say(e.message);}finally{busy=false;render();}
+};
 $('sell').onclick=async()=>{if(busy||!cart.length)return;busy=true;pending??={id:crypto.randomUUID(),lines:cart.map(l=>({...l}))};localStorage.setItem('mostrador-pending',JSON.stringify(pending));render();try{const sale=await api('sales',pending);localStorage.removeItem('mostrador-pending');pending=null;cart=[];say('Venta guardada: '+money(sale.total));await refresh();}catch(e){say(e.message+' Podés reintentar la misma venta sin duplicarla.');}finally{busy=false;render();}};
 try{const saved=JSON.parse(localStorage.getItem('mostrador-pending')||'null');if(saved?.id&&Array.isArray(saved.lines)){pending=saved;cart=saved.lines;say('Hay una confirmación pendiente. Reintentala para comprobar su registro.');}await refresh();}catch(e){say('No se pudo cargar: '+e.message);}
 </script></html>

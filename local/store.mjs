@@ -7,14 +7,32 @@ export function openStore(path) {
     CREATE TABLE IF NOT EXISTS products(id TEXT PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>0), stock INTEGER NOT NULL CHECK(stock>=0));
     CREATE TABLE IF NOT EXISTS sales(id TEXT PRIMARY KEY, created TEXT NOT NULL, total INTEGER NOT NULL, request TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS items(sale_id TEXT REFERENCES sales(id), product_id TEXT REFERENCES products(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL);
-    PRAGMA user_version=1;`);
+    `);
+  if (!db.prepare('PRAGMA table_info(products)').all().some(column => column.name === 'active')) {
+    db.exec('ALTER TABLE products ADD COLUMN active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))');
+  }
+  db.exec('PRAGMA user_version=2');
+  function validateProduct({ name, price, stock }) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 120 || !Number.isSafeInteger(price) || price <= 0 || price > 100000000000 || !Number.isSafeInteger(stock) || stock < 0 || stock > 1000000000) throw Error('Revisá nombre, precio y stock.');
+  }
   return {
     close: () => db.close(),
     products: () => db.prepare('SELECT * FROM products ORDER BY name').all(),
     sales: () => db.prepare('SELECT id,created,total FROM sales ORDER BY created DESC LIMIT 50').all(),
     addProduct({ name, price, stock }) {
-      if (typeof name !== 'string' || !name.trim() || name.length > 120 || !Number.isSafeInteger(price) || price <= 0 || !Number.isSafeInteger(stock) || stock < 0) throw Error('Revisá nombre, precio y stock.');
-      db.prepare('INSERT INTO products VALUES(?,?,?,?)').run(randomUUID(), name.trim(), price, stock);
+      validateProduct({ name, price, stock });
+      db.prepare('INSERT INTO products(id,name,price,stock) VALUES(?,?,?,?)').run(randomUUID(), name.trim(), price, stock);
+    },
+    updateProduct({ id, name, price, stock }) {
+      validateProduct({ name, price, stock });
+      if (typeof id !== 'string') throw Error('Producto inválido.');
+      const result = db.prepare('UPDATE products SET name=?,price=?,stock=? WHERE id=?').run(name.trim(),price,stock,id);
+      if (!result.changes) throw Error('El producto no existe.');
+    },
+    setProductActive({ id, active }) {
+      if (typeof id !== 'string' || typeof active !== 'boolean') throw Error('Producto inválido.');
+      const result = db.prepare('UPDATE products SET active=? WHERE id=?').run(Number(active),id);
+      if (!result.changes) throw Error('El producto no existe.');
     },
     sell({ id, lines }) {
       if (typeof id !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(id) || !Array.isArray(lines) || !lines.length || lines.length > 500) throw Error('Venta inválida.');
@@ -35,6 +53,7 @@ export function openStore(path) {
         let total = 0;
         const items = lines.map(line => {
           const p = db.prepare('SELECT * FROM products WHERE id=?').get(line.productId);
+          if (p && !p.active) throw Error('La venta contiene un producto dado de baja. Quitalo del carrito.');
           if (!p || p.stock < line.quantity) throw Error('Stock insuficiente. Actualizá los productos.');
           total += p.price * line.quantity;
           if (!Number.isSafeInteger(total)) throw Error('Importe fuera de rango.');

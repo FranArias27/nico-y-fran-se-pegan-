@@ -18,12 +18,18 @@ const server = http.createServer(async (req,res) => {
     }
     res.setHeader('Content-Type','application/json; charset=utf-8');
     if (req.method === 'GET' && req.url === '/api/state') { res.end(JSON.stringify({products:store.products(),sales:store.sales()})); return; }
-    if (req.method !== 'POST' || !['/api/products','/api/sales'].includes(req.url)) { res.writeHead(404).end('{}'); return; }
+    const actions = {
+      '/api/products': data => store.addProduct(data),
+      '/api/products/update': data => store.updateProduct(data),
+      '/api/products/active': data => store.setProductActive(data),
+      '/api/sales': data => store.sell(data)
+    };
+    if (req.method !== 'POST' || !Object.hasOwn(actions,req.url)) { res.writeHead(404).end('{}'); return; }
     if (req.headers['content-type'] !== 'application/json') throw Error('Formato inválido.');
     let body = '';
     for await (const chunk of req) { body += chunk; if (body.length > 100000) throw Error('Petición demasiado grande.'); }
     const data = JSON.parse(body);
-    const result = req.url === '/api/products' ? store.addProduct(data) : store.sell(data);
+    const result = actions[req.url](data);
     res.end(JSON.stringify(result ?? {ok:true}));
   } catch (e) { res.writeHead(400).end(JSON.stringify({error:e.message})); }
 });
